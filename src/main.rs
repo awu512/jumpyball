@@ -47,12 +47,9 @@ struct Flat {
 impl frenderer::World for World {
     fn update(&mut self, input: &frenderer::Input, _assets: &mut frenderer::assets::Assets) {
         Camera::look_at(
-            // eye
-            Vec3::new(0., 0., 100.),
-            // at
-            Vec3::new(0., 0., -10.),
-            // up
-            Vec3::new(0., 1., 0.),
+            Vec3::new(0., 200., 200.), // eye
+            Vec3::new(0., 0., 0.),     // at
+            Vec3::new(0., 1., 0.),     // up
         );
 
         let dx = if input.is_key_down(Key::Right) {
@@ -172,12 +169,6 @@ fn main() -> Result<()> {
 
     let mut engine: Engine = Engine::new(WindowSettings::default(), DT);
     let mut looki = -10.;
-
-    engine.set_camera(Camera::look_at(
-        Vec3::new(0., 200., 200.),
-        Vec3::new(0., 0., 0.),
-        Vec3::new(0., 1., 0.),
-    ));
 
     let player_tex = engine.load_texture(std::path::Path::new("content/sphere_test.png"))?;
     let player_mesh = engine.load_textured(std::path::Path::new("content/sphere_test.obj"))?;
