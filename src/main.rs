@@ -93,7 +93,7 @@ fn main() -> Result<()> {
         Vec3::new(0., 1., 0.),
     );
 
-    let player_tex = engine.load_texture(std::path::Path::new("content/sphere_test.png"))?;
+    let player_tex = engine.load_texture(std::path::Path::new("content/sphere_test_spiral.png"))?;
     let player_mesh = engine.load_textured(std::path::Path::new("content/sphere_test.obj"))?;
     let player_model = engine.create_textured_model(player_mesh, vec![player_tex]);
 
