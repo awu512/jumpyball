@@ -8,6 +8,7 @@ use frenderer::{Engine, Key, Result, WindowSettings};
 use std::rc::Rc;
 
 const DT: f64 = 1.0 / 60.0;
+const CIRC: f32 = 50. / PI;
 
 struct GameObject {
     trf: Similarity3,
@@ -65,6 +66,15 @@ impl frenderer::World for World {
 
         self.player.trf.translation.x += dx;
         self.player.trf.translation.z += dz;
+
+        self.player.trf.prepend_rotation(Rotor3 {
+            s: 1.,
+            bv: Bivec3 {
+                xy: dx / CIRC,
+                xz: 0.,
+                yz: -dz / CIRC,
+            },
+        });
 
         self.camera
             .transform
