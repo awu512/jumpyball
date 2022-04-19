@@ -8,6 +8,7 @@ use frenderer::{Engine, Key, Result, WindowSettings};
 use std::rc::Rc;
 
 const DT: f64 = 1.0 / 60.0;
+const CIRC: f32 = 50. / PI;
 
 struct GameObject {
     trf: Similarity3,
@@ -66,6 +67,15 @@ impl frenderer::World for World {
         self.player.trf.translation.x += dx;
         self.player.trf.translation.z += dz;
 
+        self.player.trf.prepend_rotation(Rotor3 {
+            s: 1.,
+            bv: Bivec3 {
+                xy: dx / CIRC,
+                xz: 0.,
+                yz: -dz / CIRC,
+            },
+        });
+
         self.camera
             .transform
             .prepend_translation(Vec3::new(-dx, 0., -dz));
@@ -93,7 +103,7 @@ fn main() -> Result<()> {
         Vec3::new(0., 1., 0.),
     );
 
-    let player_tex = engine.load_texture(std::path::Path::new("content/sphere_test.png"))?;
+    let player_tex = engine.load_texture(std::path::Path::new("content/sphere_test_spiral.png"))?;
     let player_mesh = engine.load_textured(std::path::Path::new("content/sphere_test.obj"))?;
     let player_model = engine.create_textured_model(player_mesh, vec![player_tex]);
 
