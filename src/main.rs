@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-
+// DeviceEvent
 use frenderer::animation::{AnimationSettings, AnimationState};
 use frenderer::assets::AnimRef;
 use frenderer::camera::Camera;
@@ -91,7 +91,7 @@ impl frenderer::World for World {
 
         rs.render_textured(self.level.model.clone(), self.level.trf, 1);
     }
-}
+} 
 fn main() -> Result<()> {
     frenderer::color_eyre::install()?;
 
