@@ -50,24 +50,25 @@ struct Flat {
 impl frenderer::World for World {
     fn update(&mut self, input: &frenderer::Input, _assets: &mut frenderer::assets::Assets) {
         let rotation = Rotor3::from_euler_angles(0.0, 0.0, self.camera_control.yaw);
-        self.player.trf.prepend_translation(rotation * Vec3::new(
-            (input.key_axis(Key::D, Key::A) * DT as f32) / self.player.trf.scale,
+
+        let move_vec = rotation * Vec3::new(
+            input.key_axis(Key::D, Key::A),
             0.0,
-            (input.key_axis(Key::S, Key::W) * DT as f32) / self.player.trf.scale,
-        ));
-        
+            input.key_axis(Key::S, Key::W)
+        );
 
-        // self.player.trf.translation.x += dx;
-        // self.player.trf.translation.z += dz;
 
-        // self.player.trf.prepend_rotation(Rotor3 {
-        //     s: 1.,
-        //     bv: Bivec3 {
-        //         xy: dx / CIRC,
-        //         xz: 0.,
-        //         yz: -dz / CIRC,
-        //     },
-        // });
+        self.player.trf.translation.x += move_vec[0];
+        self.player.trf.translation.z += move_vec[2];
+
+        self.player.trf.prepend_rotation(Rotor3 {
+            s: 1.,
+            bv: Bivec3 {
+                xy: move_vec[0] / CIRC,
+                xz: 0.,
+                yz: -move_vec[2] / CIRC,
+            },
+        });
 
         self.camera_control.update(input, &self.player);
         self.camera_control.update_camera(&mut self.camera);
