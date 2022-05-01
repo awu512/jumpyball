@@ -72,6 +72,11 @@ impl frenderer::World for World {
 
         self.camera_control.update(input, &self.player);
         self.camera_control.update_camera(&mut self.camera);
+
+        if input.is_key_pressed(Key::L) {
+            println!("Load Level");
+            
+        }
     }
     fn render(
         &mut self,
@@ -103,7 +108,7 @@ fn main() -> Result<()> {
     let level_tex = engine.load_texture(std::path::Path::new("content/test_lvl_texture.png"))?;
     let level_mesh = engine.load_textured(std::path::Path::new("content/test_lvl.obj"))?;
     let level_model = engine.create_textured_model(level_mesh, vec![level_tex]);
-
+    
     let world = World {
         camera,
         camera_control: OrbitCamera::new(),
@@ -116,6 +121,7 @@ fn main() -> Result<()> {
             model: level_model,
         },
     };
+
     engine.play(world)
 }
 
