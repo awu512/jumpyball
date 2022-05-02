@@ -236,8 +236,12 @@ fn main() -> Result<()> {
     let player_mesh = engine.load_textured(std::path::Path::new("content/sphere.obj"))?;
     let player_model = engine.create_textured_model(player_mesh, vec![player_tex]);
 
-    let level_tex = engine.load_texture(std::path::Path::new("content/level_1.png"))?;
-    let level_mesh = engine.load_textured(std::path::Path::new("content/level_1.obj"))?;
+    // let level_tex = engine.load_texture(std::path::Path::new("content/level_1.png"))?;
+    // let level_mesh = engine.load_textured(std::path::Path::new("content/level_1.obj"))?;
+    // let level_model = engine.create_textured_model(level_mesh, vec![level_tex, level_tex]);
+
+    let level_tex = engine.load_texture(std::path::Path::new("content/cube-diffuse.jpg"))?;
+    let level_mesh = engine.load_textured(std::path::Path::new("content/floor.obj"))?;
     let level_model = engine.create_textured_model(level_mesh, vec![level_tex, level_tex]);
 
     let bounding_boxes = vec![
