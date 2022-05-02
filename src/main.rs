@@ -71,6 +71,55 @@ fn handle_collision(p: &mut Player, b: &BoundingBox) {
     }
 }
 
+
+pub struct OrbitCamera {
+    pub pitch: f32,
+    pub yaw: f32,
+    pub distance: f32,
+    player_pos: Vec3,
+}
+impl OrbitCamera {
+    fn new() -> Self {
+        Self {
+            pitch: 0.0,
+            yaw: 0.0,
+            distance: 10.0,
+            player_pos: Vec3::zero(),
+        }
+    }
+    fn update(&mut self, events: &frenderer::Input, player: &Player) {
+        let MousePos { x: dx, y: dy } = events.mouse_delta();
+        self.pitch += (DT * dy) as f32 / 10.0;
+        self.pitch = self.pitch.clamp(-PI / 4.0, PI / 4.0);
+
+        self.yaw += (DT * dx) as f32 / 10.0;
+        // self.yaw = self.yaw.clamp(-PI / 4.0, PI / 4.0);
+        // self.distance += events.key_axis(Key::Up, Key::Down) * 5.0 * DT as f32;
+        self.player_pos = player.trf.translation;
+        // self.player_rot = player.trf.rotation;
+        // TODO: when player moves, slightly move yaw towards zero
+    }
+    fn update_camera(&self, c: &mut Camera) {
+        // The camera should point at the player (you could transform
+        // this point to make it point at the player's head or center,
+        // or at point in front of the player somewhere, instead of
+        // their feet)
+        let at = self.player_pos;
+        // And rotated around the player's position and offset backwards
+        let camera_rot = Rotor3::from_euler_angles(0.0, self.pitch, self.yaw);
+        // self.player_rot = camera_rot;
+        let offset = camera_rot * Vec3::new(0.0, 0.0, -self.distance);
+        let eye = self.player_pos + offset;
+        // To be fancy, we'd want to make the camera's eye an object
+        // in the world whose rotation is locked to point towards the
+        // player, and whose distance from the player is locked, and
+        // so on---so we'd have player OR camera movements apply
+        // accelerations to the camera which could be "beaten" by
+        // collision.
+        *c = Camera::look_at(eye, at, Vec3::unit_y());
+    }
+}
+
 struct Player {
     settings: PlayerSettings,
     trf: Similarity3,
@@ -104,7 +153,7 @@ impl frenderer::World for World {
             self.player.jump_count += 1;
         }
       
-        // PLAYER MOVEMENT
+        // CALCULATE PLAYER MOVEMENT
         let rotation = Rotor3::from_euler_angles(0.0, 0.0, self.camera_control.yaw);
         self.player.v.y += self.player.settings.gravity;
         let move_vec = rotation * Vec3::new(
@@ -113,12 +162,15 @@ impl frenderer::World for World {
             input.key_axis(Key::S, Key::W)
         );
 
+        // EXECUTE PLAYER MOVEMENT
         self.player.trf.translation.x += self.player.settings.velocity * move_vec[0];
+        self.player.trf.translation.y += move_vec[1];
         self.player.trf.translation.z += self.player.settings.velocity * move_vec[2];
       
         // GROUND CHECK
         if self.player.trf.translation.y < self.player.settings.radius {
             self.player.trf.translation.y = self.player.settings.radius;
+            self.player.v.y = 0.;
             self.player.jump_count = 0;
         }
 
@@ -145,6 +197,8 @@ impl frenderer::World for World {
                 yz: -(move_vec[2] / self.player.settings.radius) * rot_mult,
             },
         });
+
+        // ADJUST CAMERA
         self.camera_control.update(input, &self.player);
         self.camera_control.update_camera(&mut self.camera);
     }
@@ -217,52 +271,4 @@ fn main() -> Result<()> {
         },
     };
     engine.play(world)
-}
-
-pub struct OrbitCamera {
-    pub pitch: f32,
-    pub yaw: f32,
-    pub distance: f32,
-    player_pos: Vec3,
-}
-impl OrbitCamera {
-    fn new() -> Self {
-        Self {
-            pitch: 0.0,
-            yaw: 0.0,
-            distance: 100.0,
-            player_pos: Vec3::zero(),
-        }
-    }
-    fn update(&mut self, events: &frenderer::Input, player: &Player) {
-        let MousePos { x: dx, y: dy } = events.mouse_delta();
-        self.pitch += (DT * dy) as f32 / 10.0;
-        self.pitch = self.pitch.clamp(-PI / 4.0, PI / 4.0);
-
-        self.yaw += (DT * dx) as f32 / 10.0;
-        // self.yaw = self.yaw.clamp(-PI / 4.0, PI / 4.0);
-        // self.distance += events.key_axis(Key::Up, Key::Down) * 5.0 * DT as f32;
-        self.player_pos = player.trf.translation;
-        // self.player_rot = player.trf.rotation;
-        // TODO: when player moves, slightly move yaw towards zero
-    }
-    fn update_camera(&self, c: &mut Camera) {
-        // The camera should point at the player (you could transform
-        // this point to make it point at the player's head or center,
-        // or at point in front of the player somewhere, instead of
-        // their feet)
-        let at = self.player_pos;
-        // And rotated around the player's position and offset backwards
-        let camera_rot = Rotor3::from_euler_angles(0.0, self.pitch, self.yaw);
-        // self.player_rot = camera_rot;
-        let offset = camera_rot * Vec3::new(0.0, 0.0, -self.distance);
-        let eye = self.player_pos + offset;
-        // To be fancy, we'd want to make the camera's eye an object
-        // in the world whose rotation is locked to point towards the
-        // player, and whose distance from the player is locked, and
-        // so on---so we'd have player OR camera movements apply
-        // accelerations to the camera which could be "beaten" by
-        // collision.
-        *c = Camera::look_at(eye, at, Vec3::unit_y());
-    }
 }
