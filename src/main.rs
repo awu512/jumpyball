@@ -137,7 +137,7 @@ struct World {
     camera: Camera,
     camera_control: OrbitCamera,
     player: Player,
-    level: Level,
+    levels: Vec<Level>,
 }
 struct Flat {
     trf: Similarity3,
@@ -184,7 +184,7 @@ impl frenderer::World for World {
         };
       
         // HANDLE COLLISION
-        for b in &self.level.bounding_boxes {
+        for b in &self.levels[0].bounding_boxes {
             handle_collision(&mut self.player, b);
         }
 
@@ -212,7 +212,7 @@ impl frenderer::World for World {
 
         rs.render_textured(self.player.model.clone(), self.player.trf, 0);
 
-        rs.render_textured(self.level.model.clone(), self.level.trf, 1);
+        rs.render_textured(self.levels[0].model.clone(), self.levels[0].trf, 1);
     }
 } 
 fn main() -> Result<()> {
@@ -232,17 +232,22 @@ fn main() -> Result<()> {
         gravity: -0.03
     };
 
+    let level_models = Vec::new();
+    
     let player_tex = engine.load_texture(std::path::Path::new("content/sphere.png"))?;
     let player_mesh = engine.load_textured(std::path::Path::new("content/sphere.obj"))?;
     let player_model = engine.create_textured_model(player_mesh, vec![player_tex]);
 
-    // let level_tex = engine.load_texture(std::path::Path::new("content/level_1.png"))?;
-    // let level_mesh = engine.load_textured(std::path::Path::new("content/level_1.obj"))?;
-    // let level_model = engine.create_textured_model(level_mesh, vec![level_tex, level_tex]);
-
-    let level_tex = engine.load_texture(std::path::Path::new("content/cube-diffuse.jpg"))?;
-    let level_mesh = engine.load_textured(std::path::Path::new("content/floor.obj"))?;
+    let level_tex = engine.load_texture(std::path::Path::new("content/level_1.png"))?;
+    let level_mesh = engine.load_textured(std::path::Path::new("content/level_1.obj"))?;
     let level_model = engine.create_textured_model(level_mesh, vec![level_tex, level_tex]);
+
+    let level_tex2 = engine.load_texture(std::path::Path::new("content/cube-diffuse.jpg"))?;
+    let level_mesh2 = engine.load_textured(std::path::Path::new("content/level_1.obj"))?;
+    let level_model2 = engine.create_textured_model(level_mesh2, vec![level_tex2, level_tex2]);
+
+    level_models.push(level_model);
+    level_models.push(level_model2);
 
     let bounding_boxes = vec![
         BoundingBox::new(-18.0, 18.0, 0.0, 0.0, -18.0, 18.0), 
@@ -268,11 +273,12 @@ fn main() -> Result<()> {
             v: Vec3::new(0., 0., 0.),
             jump_count: 0,
         },
-        level: Level {
-            trf: Similarity3::new(Vec3::new(0.0, 0.0, 0.0), Rotor3::identity(), 3.),
-            model: level_model,
-            bounding_boxes,
-        },
+        levels: (0..1) 
+            .map(|n| Level {
+                trf: Similarity3::new(Vec3::new(0.0, 0.0, 0.0), Rotor3::identity(), 3.),
+                model: level_model[n],
+                bounding_boxes: bounding_boxes,
+            }).collect(),
     };
     engine.play(world)
 }
