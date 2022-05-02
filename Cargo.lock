@@ -673,8 +673,7 @@ dependencies = [
 [[package]]
 name = "frenderer"
 version = "0.5.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e7f0f90a41062b5fa1fca8c65e497660192164c27ec5722c09caf2778cfd80eb"
+source = "git+https://github.com/JoeOsborn/frenderer.git#81649227d410223812512f9e0060f379ccad74aa"
 dependencies = [
  "bytemuck",
  "color-eyre",
