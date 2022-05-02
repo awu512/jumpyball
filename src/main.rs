@@ -78,12 +78,12 @@ struct Level {
     trf: Similarity3,
     // model: Rc<frenderer::renderer::textured::Model>,
     model: Rc<frenderer::renderer::flat::Model>,
+    bounding_boxes: Vec<BoundingBox>,
 }
 struct World {
     camera: Camera,
     player: Player,
     level: Level,
-    bounding_boxes: Vec<BoundingBox>,
 }
 struct Flat {
     trf: Similarity3,
@@ -148,7 +148,7 @@ impl frenderer::World for World {
         });
 
         // HANDLE COLLISION
-        for b in &self.bounding_boxes {
+        for b in &self.level.bounding_boxes {
             handle_collision(&mut self.player, b);
         }
 
@@ -226,8 +226,8 @@ fn main() -> Result<()> {
         level: Level {
             trf: Similarity3::new(Vec3::new(0.0, 0.0, 0.0), Rotor3::identity(), 1.),
             model: level_model.unwrap(),
+            bounding_boxes,
         },
-        bounding_boxes
     };
     engine.play(world)
 }
