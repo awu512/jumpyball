@@ -192,15 +192,15 @@ fn main() -> Result<()> {
         gravity: -0.03
     };
 
-    let player_tex = engine.load_texture(std::path::Path::new("content/sphere_test_spiral.png"))?;
-    let player_mesh = engine.load_textured(std::path::Path::new("content/test.obj"))?;
+    let player_tex = engine.load_texture(std::path::Path::new("content/sphere.png"))?;
+    let player_mesh = engine.load_textured(std::path::Path::new("content/sphere.obj"))?;
     let player_model = engine.create_textured_model(player_mesh, vec![player_tex]);
 
     // let level_tex = engine.load_texture(std::path::Path::new("content/level_1.png"))?;
     // let level_mesh = engine.load_textured(std::path::Path::new("content/level_1.obj"))?;
     // let level_model = engine.create_textured_model(level_mesh, vec![level_tex, level_tex]);
 
-    let level_model = engine.load_flat(std::path::Path::new("content/untitled.obj"));
+    let level_model = engine.load_flat(std::path::Path::new("content/test_level.obj"));
 
     // let bounding_boxes = vec![
     //     // BoundingBox::new(25.076244354248047, 25.076244354248047, 6.903861999511719, 6.903861999511719, 1.0054539442062378, 1.0054539442062378),
