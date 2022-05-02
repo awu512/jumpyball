@@ -56,6 +56,7 @@ fn new_world(
         goal: Goal {
             trf: Similarity3::new(end, Rotor3::identity(), 1.),
             model: gem_model,
+            anim_counter: 50
         },
     };
 
@@ -118,6 +119,32 @@ struct Sphere {
     r: f32,
 }
 
+fn player_touching_end(p:&Player, g:&Goal) -> bool {
+    let s: Sphere = Sphere { 
+        pos: p.trf.translation,
+        r: p.settings.radius,
+    };
+
+    let b: BoundingBox = BoundingBox { 
+        min_x: g.trf.translation.x - 0.5,
+        max_x: g.trf.translation.x + 0.5,
+        min_y: g.trf.translation.y - 1.,
+        max_y: g.trf.translation.y + 1.,
+        min_z: g.trf.translation.z - 0.5,
+        max_z: g.trf.translation.z + 0.5,
+    };
+
+    let closest = Vec3::new(
+        s.pos.x.clamp(b.min_x, b.max_x),
+        s.pos.y.clamp(b.min_y, b.max_y),
+        s.pos.z.clamp(b.min_z, b.max_z),
+    );
+
+    let dist = closest - s.pos;
+
+    dist.mag() <= s.r
+}
+
 fn handle_collision(p: &mut Player, b: &BoundingBox) {
     let s: Sphere = Sphere { 
         pos: p.trf.translation,
@@ -163,6 +190,7 @@ impl OrbitCamera {
             player_pos: Vec3::zero(),
         }
     }
+
     fn update(&mut self, events: &frenderer::Input, player: &Player) {
         let MousePos { x: dx, y: dy } = events.mouse_delta();
         self.pitch += (DT * dy) as f32 / 10.0;
@@ -175,6 +203,7 @@ impl OrbitCamera {
         // self.player_rot = player.trf.rotation;
         // TODO: when player moves, slightly move yaw towards zero
     }
+
     fn update_camera(&self, c: &mut Camera) {
         // The camera should point at the player (you could transform
         // this point to make it point at the player's head or center,
@@ -213,6 +242,7 @@ struct Level {
 struct Goal {
     trf: Similarity3,
     model: Rc<frenderer::renderer::textured::Model>,
+    anim_counter: u16
 }
 struct World {
     camera: Camera,
@@ -271,6 +301,11 @@ impl frenderer::World for World {
             handle_collision(&mut self.player, b);
         }
 
+        // CHECK END OF LEVEL
+        if player_touching_end(&self.player, &self.goal) {
+            dbg!("You win!"); // move to next level
+        }
+
         // ROTATE PLAYER
         self.player.trf.prepend_rotation(Rotor3 {
             s: 1.,
@@ -281,11 +316,15 @@ impl frenderer::World for World {
             },
         });
 
-        dbg!(self.player.trf.translation);
-
         // ADJUST CAMERA
         self.camera_control.update(input, &self.player);
         self.camera_control.update_camera(&mut self.camera);
+
+        // ANIMATE GOAL
+        if self.goal.anim_counter >= 200 { self.goal.anim_counter = 0 }
+        let dy: f32 = if self.goal.anim_counter < 100 { -0.005 } else { 0.005 };
+        self.goal.anim_counter += 1;
+        self.goal.trf.translation.y += dy;
     }
 
     fn render(
