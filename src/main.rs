@@ -90,7 +90,7 @@ impl OrbitCamera {
     fn update(&mut self, events: &frenderer::Input, player: &Player) {
         let MousePos { x: dx, y: dy } = events.mouse_delta();
         self.pitch += (DT * dy) as f32 / 10.0;
-        self.pitch = self.pitch.clamp(-PI / 4.0, PI / 4.0);
+        self.pitch = self.pitch.clamp(0.0, PI / 3.0);
 
         self.yaw += (DT * dx) as f32 / 10.0;
         // self.yaw = self.yaw.clamp(-PI / 4.0, PI / 4.0);
@@ -161,11 +161,11 @@ impl frenderer::World for World {
             self.player.v.y,
             input.key_axis(Key::S, Key::W)
         );
-
+        
         // EXECUTE PLAYER MOVEMENT
-        self.player.trf.translation.x += self.player.settings.velocity * move_vec[0];
+        self.player.trf.translation.x += move_vec[0] * self.player.settings.velocity;
         self.player.trf.translation.y += move_vec[1];
-        self.player.trf.translation.z += self.player.settings.velocity * move_vec[2];
+        self.player.trf.translation.z += move_vec[2] * self.player.settings.velocity;
       
         // GROUND CHECK
         if self.player.trf.translation.y < self.player.settings.radius {
@@ -192,9 +192,9 @@ impl frenderer::World for World {
         self.player.trf.prepend_rotation(Rotor3 {
             s: 1.,
             bv: Bivec3 {
-                xy: (move_vec[0] / self.player.settings.radius) * rot_mult,
+                xy: (move_vec[0] / 10.) * rot_mult,
                 xz: 0.,
-                yz: -(move_vec[2] / self.player.settings.radius) * rot_mult,
+                yz: -(move_vec[2] / 10.) * rot_mult,
             },
         });
 
