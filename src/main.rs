@@ -84,14 +84,12 @@ fn handle_collision(p: &mut Player, b: &BoundingBox) {
 
         if rest.x.abs() > rest.y.abs() && rest.x.abs() > rest.z.abs() {
             p.trf.translation.x += rest.x;
-            p.v.x = 0.;
         } else if rest.y.abs() > rest.z.abs() {
             p.trf.translation.y += rest.y;
-            p.v.y = 0.;
+            p.vy = 0.;
             p.jump_count = 0;
         } else {
             p.trf.translation.z += rest.z;
-            p.v.z = 0.;
         }
     }
 }
@@ -149,7 +147,7 @@ struct Player {
     settings: PlayerSettings,
     trf: Similarity3,
     model: Rc<frenderer::renderer::textured::Model>,
-    v: Vec3,
+    vy: f32,
     jump_count: u8,
 }
 
@@ -174,28 +172,28 @@ impl frenderer::World for World {
 
         // JUMP MECHANICS
         if input.is_key_pressed(Key::Space) && self.player.jump_count < 2 {
-            self.player.v.y = 3. * self.player.settings.velocity;
+            self.player.vy = 3. * self.player.settings.velocity;
             self.player.jump_count += 1;
         }
       
         // CALCULATE PLAYER MOVEMENT
         let rotation = Rotor3::from_euler_angles(0.0, 0.0, self.camera_control.yaw);
-        self.player.v.y += self.player.settings.gravity;
+        self.player.vy += self.player.settings.gravity;
         let move_vec = rotation * Vec3::new(
             input.key_axis(Key::D, Key::A),
-            self.player.v.y,
+            self.player.vy,
             input.key_axis(Key::S, Key::W)
         );
 
         // EXECUTE PLAYER MOVEMENT
-        self.player.trf.translation.x += self.player.settings.velocity * move_vec[0];
-        self.player.trf.translation.y += move_vec[1];
-        self.player.trf.translation.z += self.player.settings.velocity * move_vec[2];
+        self.player.trf.translation.x += self.player.settings.velocity * move_vec.x;
+        self.player.trf.translation.y += move_vec.y;
+        self.player.trf.translation.z += self.player.settings.velocity * move_vec.z;
       
         // GROUND CHECK
         if self.player.trf.translation.y < self.player.settings.radius {
             self.player.trf.translation.y = self.player.settings.radius;
-            self.player.v.y = 0.;
+            self.player.vy = 0.;
             self.player.jump_count = 0;
         }
 
@@ -217,9 +215,9 @@ impl frenderer::World for World {
         self.player.trf.prepend_rotation(Rotor3 {
             s: 1.,
             bv: Bivec3 {
-                xy: (move_vec[0] / self.player.settings.radius) * rot_mult,
+                xy: (move_vec.x / (2.*PI*self.player.settings.radius)) * rot_mult,
                 xz: 0.,
-                yz: -(move_vec[2] / self.player.settings.radius) * rot_mult,
+                yz: -(move_vec.z / (2.*PI*self.player.settings.radius)) * rot_mult,
             },
         });
 
@@ -274,7 +272,7 @@ fn main() -> Result<()> {
             settings,
             trf: Similarity3::new(Vec3::new(0.0, 3.0, 0.0), Rotor3::identity(), 1.),
             model: player_model,
-            v: Vec3::new(0., 0., 0.),
+            vy: 0.,
             jump_count: 0,
         },
         level: Level {
