@@ -42,6 +42,7 @@ struct World {
     camera_control: OrbitCamera,
     player: Player,
     level: Level,
+    // level2: Level,
 }
 struct Flat {
     trf: Similarity3,
@@ -72,6 +73,10 @@ impl frenderer::World for World {
 
         self.camera_control.update(input, &self.player);
         self.camera_control.update_camera(&mut self.camera);
+        if input.is_key_pressed(Key::L) {
+            println!("Load Level");
+            
+        }
     }
     fn render(
         &mut self,
@@ -84,6 +89,8 @@ impl frenderer::World for World {
 
         rs.render_textured(self.level.model.clone(), self.level.trf, 1);
     }
+
+    
 } 
 fn main() -> Result<()> {
     frenderer::color_eyre::install()?;
@@ -96,13 +103,17 @@ fn main() -> Result<()> {
         Vec3::new(0., 1., 0.),
     );
 
-    let player_tex = engine.load_texture(std::path::Path::new("content/sphere_test_spiral.png"))?;
+    let player_tex = engine.load_texture(std::path::Path::new("content/robot.png"))?;
     let player_mesh = engine.load_textured(std::path::Path::new("content/sphere_test.obj"))?;
     let player_model = engine.create_textured_model(player_mesh, vec![player_tex]);
 
     let level_tex = engine.load_texture(std::path::Path::new("content/test_lvl_texture.png"))?;
     let level_mesh = engine.load_textured(std::path::Path::new("content/test_lvl.obj"))?;
     let level_model = engine.create_textured_model(level_mesh, vec![level_tex]);
+
+    // let level_tex = engine.load_texture(std::path::Path::new("content/test_lvl_texture.png"))?;
+    // let level_mesh = engine.load_textured(std::path::Path::new("content/test_lvl.obj"))?;
+    // let level_model2 = engine.create_textured_model(level_mesh, vec![level_tex]);
 
     let world = World {
         camera,
@@ -115,6 +126,10 @@ fn main() -> Result<()> {
             trf: Similarity3::new(Vec3::new(0.0, -20.0, 00.0), Rotor3::identity(), 20.0),
             model: level_model,
         },
+        // level2: Level {
+        //     trf: Similarity3::new(Vec3::new(0.0, -20.0, 00.0), Rotor3::identity(), 20.0),
+        //     model: level_model,
+        // }
     };
     engine.play(world)
 }
@@ -137,7 +152,7 @@ impl OrbitCamera {
     fn update(&mut self, events: &frenderer::Input, player: &Player) {
         let MousePos { x: dx, y: dy } = events.mouse_delta();
         self.pitch += (DT * dy) as f32 / 10.0;
-        self.pitch = self.pitch.clamp(-PI / 4.0, PI / 4.0);
+        self.pitch = self.pitch.clamp(-0.1, PI / 4.0);
 
         self.yaw += (DT * dx) as f32 / 10.0;
         // self.yaw = self.yaw.clamp(-PI / 4.0, PI / 4.0);
