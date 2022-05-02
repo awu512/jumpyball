@@ -105,14 +105,10 @@ fn handle_collision(p: &mut Player, b: &BoundingBox) {
         s.pos.z.clamp(b.min_z, b.max_z),
     );
 
-    dbg!(closest);
-
     let dist = closest - s.pos;
 
     if dist.mag() < s.r {
         let rest = (s.pos - closest).normalized() * (s.r-(s.pos - closest).mag());
-
-        // dbg!(s.pos, dist, rest);
 
         if rest.x.abs() > rest.y.abs() && rest.x.abs() > rest.z.abs() {
             p.trf.translation.x += rest.x;
@@ -254,7 +250,18 @@ fn main() -> Result<()> {
     let level_model = engine.create_textured_model(level_mesh, vec![level_tex, level_tex]);
 
     let bounding_boxes = vec![
-        BoundingBox::new(-4.0, -2.0, 0.0, 2.0, -1.0, 1.0),
+        // BoundingBox::new(25.076244354248047, 25.076244354248047, 6.903861999511719, 6.903861999511719, 1.0054539442062378, 1.0054539442062378),
+        // BoundingBox::new(24.358890533447266, 24.358890533447266, 4.958309173583984, 4.958309173583984, -22.925790786743164, -22.925790786743164),
+        BoundingBox::new(1.5   , 2.5   , 0. , 3. , 1.    , 3.    ),
+        BoundingBox::new(-3.   , -2.   , 0. , 3. , -4.75 , -3.75 ),
+        BoundingBox::new(-5.25 , -4.25 , 0. , 3. , -4.75 , -3.75 ),
+        BoundingBox::new(-0.75 , 0.25  , 0. , 3. , -4.75 , -3.75 ),
+        BoundingBox::new(-6.   , -5.   , 0. , 3. , 4.    , 5.    ),
+        BoundingBox::new(-3.5  , -2.5  , 0. , 3. , 4.    , 5.    ),
+        BoundingBox::new(1.5   , 2.5   , 0. , 3. , -4.75 , -3.75 ),
+        BoundingBox::new(1.5   , 2.5   , 0. , 3. , -3.   , -1.   ),
+        BoundingBox::new(-1.   , 0.0   , 0. , 3. , 4.    , 5.    ),
+        // BoundingBox::new(-1.0006559021421708, 0.9993443362764083, -1.255562663078308, 4.24443781375885, 0.9995791912078857, 2.999579429626465)
     ];
 
     let world = World {
