@@ -161,6 +161,8 @@ struct World {
     camera_control: OrbitCamera,
     player: Player,
     level: Level,
+    start: Vec3,
+    end: Vec3,
 }
 struct Flat {
     trf: Similarity3,
@@ -192,7 +194,7 @@ impl frenderer::World for World {
       
         // GROUND CHECK
         if self.player.trf.translation.y < self.player.settings.radius {
-            self.player.trf.translation.y = self.player.settings.radius;
+            self.player.trf.translation = self.start;
             self.player.vy = 0.;
             self.player.jump_count = 0;
         }
@@ -270,7 +272,7 @@ fn main() -> Result<()> {
         camera_control: OrbitCamera::new(),
         player: Player {
             settings,
-            trf: Similarity3::new(Vec3::new(0.0, 3.0, 0.0), Rotor3::identity(), 1.),
+            trf: Similarity3::new(Vec3::new(-12., 10., 11.5), Rotor3::identity(), 1.),
             model: player_model,
             vy: 0.,
             jump_count: 0,
@@ -280,6 +282,8 @@ fn main() -> Result<()> {
             model: level_model,
             bounding_boxes,
         },
+        start: Vec3::new(-12., 10., 11.5),
+        end: Vec3::new(0., 0., 0.)
     };
     engine.play(world)
 }
