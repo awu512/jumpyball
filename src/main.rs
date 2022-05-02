@@ -81,8 +81,7 @@ struct Player {
 
 struct Level {
     trf: Similarity3,
-    // model: Rc<frenderer::renderer::textured::Model>,
-    model: Rc<frenderer::renderer::flat::Model>,
+    model: Rc<frenderer::renderer::textured::Model>,
     bounding_boxes: Vec<BoundingBox>,
 }
 struct World {
@@ -171,8 +170,7 @@ impl frenderer::World for World {
 
         rs.render_textured(self.player.model.clone(), self.player.trf, 0);
 
-        rs.render_flat(self.level.model.clone(), self.level.trf, 1);
-        // rs.render_textured(self.level.model.clone(), self.level.trf, 1);
+        rs.render_textured(self.level.model.clone(), self.level.trf, 1);
     }
 }
 fn main() -> Result<()> {
@@ -196,33 +194,22 @@ fn main() -> Result<()> {
     let player_mesh = engine.load_textured(std::path::Path::new("content/sphere.obj"))?;
     let player_model = engine.create_textured_model(player_mesh, vec![player_tex]);
 
-    // let level_tex = engine.load_texture(std::path::Path::new("content/level_1.png"))?;
-    // let level_mesh = engine.load_textured(std::path::Path::new("content/level_1.obj"))?;
-    // let level_model = engine.create_textured_model(level_mesh, vec![level_tex, level_tex]);
-
-    let level_model = engine.load_flat(std::path::Path::new("content/test_level.obj"));
-
-    // let bounding_boxes = vec![
-    //     // BoundingBox::new(25.076244354248047, 25.076244354248047, 6.903861999511719, 6.903861999511719, 1.0054539442062378, 1.0054539442062378),
-    //     // BoundingBox::new(24.358890533447266, 24.358890533447266, 4.958309173583984, 4.958309173583984, -22.925790786743164, -22.925790786743164),
-    //     BoundingBox::new(1.5   , 2.5   , 0. , 3. , 1.    , 3.    ),
-    //     BoundingBox::new(-3.   , -2.   , 0. , 3. , -4.75 , -3.75 ),
-    //     BoundingBox::new(-5.25 , -4.25 , 0. , 3. , -4.75 , -3.75 ),
-    //     BoundingBox::new(-0.75 , 0.25  , 0. , 3. , -4.75 , -3.75 ),
-    //     BoundingBox::new(-6.   , -5.   , 0. , 3. , 4.    , 5.    ),
-    //     BoundingBox::new(-3.5  , -2.5  , 0. , 3. , 4.    , 5.    ),
-    //     BoundingBox::new(1.5   , 2.5   , 0. , 3. , -4.75 , -3.75 ),
-    //     BoundingBox::new(1.5   , 2.5   , 0. , 3. , -3.   , -1.   ),
-    //     BoundingBox::new(-1.   , 0.0   , 0. , 3. , 4.    , 5.    ),
-    //     // BoundingBox::new(-1.0006559021421708, 0.9993443362764083, -1.255562663078308, 4.24443781375885, 0.9995791912078857, 2.999579429626465)
-    // ];
+    let level_tex = engine.load_texture(std::path::Path::new("content/level_1.png"))?;
+    let level_mesh = engine.load_textured(std::path::Path::new("content/level_1.obj"))?;
+    let level_model = engine.create_textured_model(level_mesh, vec![level_tex, level_tex]);
 
     let bounding_boxes = vec![
-        BoundingBox::new(-1., 1., 0., 2., -1., 1.),
-        BoundingBox::new(3., 5., 0., 2., -1., 1.),
-        BoundingBox::new(7., 9., 0., 2., -1., 1.),
-        BoundingBox::new(11., 13., 0., 2., -1., 1.),
-        BoundingBox::new(15., 17., 0., 2., -1., 1.),
+        BoundingBox::new(-18.0, 18.0, 0.0, 0.0, -18.0, 18.0), 
+        BoundingBox::new(5.998920500278473, 8.998920857906342, 0.3587096929550171, 8.608710408210754, -7.499444782733917, -4.499444425106049), 
+        BoundingBox::new(-7.50017112493515, -4.5001707673072815, 0.3587082624435425, 8.60870897769928, 9.75146108865738, 12.751461446285248), 
+        BoundingBox::new(-14.253300368785858, -11.25330001115799, 0.20693814754486084, 8.456938862800598, 9.75294953584671, 12.752949893474579), 
+        BoundingBox::new(-0.7519842088222504, 2.2480161488056183, 0.35869288444519043, 8.608693599700928, 9.751274406909943, 12.751274764537811), 
+        BoundingBox::new(-16.501183211803436, -13.501182854175568, 0.35847795009613037, 8.608478665351868, -16.499910056591034, -13.499909698963165), 
+        BoundingBox::new(-9.011482179164886, -6.011481821537018, 0.3514394760131836, 8.601440191268921, -16.504347503185272, -13.504347145557404), 
+        BoundingBox::new(5.998819649219513, 8.998820006847382, 0.358479380607605, 8.608480095863342, 9.749907553195953, 12.749907910823822), 
+        BoundingBox::new(5.998144447803497, 8.998144805431366, 0.35839176177978516, 8.608391761779785, 0.0007392168045043945, 6.000739932060242), 
+        BoundingBox::new(-1.5021528888610192, 1.4978474687668495, 0.35870790481567383, 8.608708620071411, -16.499106109142303, -13.499105751514435), 
+        BoundingBox::new(-1.5019675276125781, 1.4980328300152905, 0.35831236839294434, 8.608313083648682, -7.49873811006546, -4.4987377524375916), 
     ];
 
     let world = World {
@@ -235,8 +222,8 @@ fn main() -> Result<()> {
             jump_count: 0,
         },
         level: Level {
-            trf: Similarity3::new(Vec3::new(0.0, 0.0, 0.0), Rotor3::identity(), 1.),
-            model: level_model.unwrap(),
+            trf: Similarity3::new(Vec3::new(0.0, 0.0, 0.0), Rotor3::identity(), 3.),
+            model: level_model,
             bounding_boxes,
         },
     };
