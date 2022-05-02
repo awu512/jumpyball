@@ -2,6 +2,8 @@
 use frenderer::camera::Camera;
 use frenderer::types::*;
 use frenderer::{Engine, MousePos, Key, Result, WindowSettings};
+use std::fs::File;
+use std::io::{BufRead, BufReader};
 use std::rc::Rc;
 
 // GAME SETTINGS
@@ -32,6 +34,29 @@ impl BoundingBox {
             min_z,
             max_z
         }
+    }
+
+    fn from_file(filepath: &str) -> Result<Vec<Self>, Box<dyn std::error::Error>> {
+        let file = File::open(filepath)?;
+        let reader = BufReader::new(file);
+
+        let mut boxes: Vec<Self> = vec![];
+
+        for line in reader.lines() {
+            let unwrap = line.unwrap();
+            let split: Vec<&str> = unwrap.split(' ').collect::<Vec<&str>>();
+            let cast: Vec<f32> = split.iter().map(|s| s.parse::<f32>().unwrap()).collect();
+            boxes.push(Self {
+                min_x: cast[0],
+                max_x: cast[1],
+                min_y: cast[2],
+                max_y: cast[3],
+                min_z: cast[4],
+                max_z: cast[5],
+            })
+        }
+
+        Ok(boxes)
     }
 }
 
@@ -71,19 +96,19 @@ fn handle_collision(p: &mut Player, b: &BoundingBox) {
     }
 }
 
-
 pub struct OrbitCamera {
     pub pitch: f32,
     pub yaw: f32,
     pub distance: f32,
     player_pos: Vec3,
 }
+
 impl OrbitCamera {
     fn new() -> Self {
         Self {
-            pitch: 0.0,
-            yaw: 0.0,
-            distance: 10.0,
+            pitch: 0.,
+            yaw: 0.,
+            distance: 5.,
             player_pos: Vec3::zero(),
         }
     }
@@ -221,7 +246,7 @@ fn main() -> Result<()> {
     let mut engine: Engine = Engine::new(WindowSettings::default(), DT);
 
     let camera = Camera::look_at(
-        Vec3::new(0., 4., 7.),
+        Vec3::new(0., 4., 0.),
         Vec3::new(0., 0., 0.),
         Vec3::new(0., 1., 0.),
     );
@@ -240,19 +265,7 @@ fn main() -> Result<()> {
     let level_mesh = engine.load_textured(std::path::Path::new("content/level_1.obj"))?;
     let level_model = engine.create_textured_model(level_mesh, vec![level_tex, level_tex]);
 
-    let bounding_boxes = vec![
-        BoundingBox::new(-18.0, 18.0, 0.0, 0.0, -18.0, 18.0), 
-        BoundingBox::new(5.998920500278473, 8.998920857906342, 0.3587096929550171, 8.608710408210754, -7.499444782733917, -4.499444425106049), 
-        BoundingBox::new(-7.50017112493515, -4.5001707673072815, 0.3587082624435425, 8.60870897769928, 9.75146108865738, 12.751461446285248), 
-        BoundingBox::new(-14.253300368785858, -11.25330001115799, 0.20693814754486084, 8.456938862800598, 9.75294953584671, 12.752949893474579), 
-        BoundingBox::new(-0.7519842088222504, 2.2480161488056183, 0.35869288444519043, 8.608693599700928, 9.751274406909943, 12.751274764537811), 
-        BoundingBox::new(-16.501183211803436, -13.501182854175568, 0.35847795009613037, 8.608478665351868, -16.499910056591034, -13.499909698963165), 
-        BoundingBox::new(-9.011482179164886, -6.011481821537018, 0.3514394760131836, 8.601440191268921, -16.504347503185272, -13.504347145557404), 
-        BoundingBox::new(5.998819649219513, 8.998820006847382, 0.358479380607605, 8.608480095863342, 9.749907553195953, 12.749907910823822), 
-        BoundingBox::new(5.998144447803497, 8.998144805431366, 0.35839176177978516, 8.608391761779785, 0.0007392168045043945, 6.000739932060242), 
-        BoundingBox::new(-1.5021528888610192, 1.4978474687668495, 0.35870790481567383, 8.608708620071411, -16.499106109142303, -13.499105751514435), 
-        BoundingBox::new(-1.5019675276125781, 1.4980328300152905, 0.35831236839294434, 8.608313083648682, -7.49873811006546, -4.4987377524375916), 
-    ];
+    let bounding_boxes = BoundingBox::from_file("./content/level_1_bb.txt").unwrap();
 
     let world = World {
         camera,
@@ -272,3 +285,6 @@ fn main() -> Result<()> {
     };
     engine.play(world)
 }
+// START + END
+// NEW MODEL
+// LOAD BOXES FROM FILE
