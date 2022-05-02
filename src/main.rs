@@ -9,6 +9,59 @@ use std::rc::Rc;
 // GAME SETTINGS
 const DT: f64 = 1.0 / 60.0; // time step
 
+fn new_world(
+    engine: &mut Engine,
+    settings: PlayerSettings, 
+    level_name: &str,
+    start: Vec3, 
+    end: Vec3
+) -> Result<World, Box<dyn std::error::Error>> {
+
+    let camera = Camera::look_at(
+        Vec3::zero(),
+        Vec3::zero(),
+        Vec3::new(0., 1., 0.),
+    );
+
+    let player_tex = engine.load_texture(std::path::Path::new("content/sphere.png"))?;
+    let player_mesh = engine.load_textured(std::path::Path::new("content/sphere.obj"))?;
+    let player_model = engine.create_textured_model(player_mesh, vec![player_tex]);
+
+    let level_tex = engine.load_texture(std::path::Path::new(&format!("content/{level_name}.png")))?;
+    let level_mesh = engine.load_textured(std::path::Path::new(&format!("content/{level_name}.obj")))?;
+    let level_model = engine.create_textured_model(level_mesh, vec![level_tex; 2]);
+
+    let bounding_boxes = BoundingBox::from_file(&format!("content/{level_name}_bb.txt")).unwrap();
+
+    let gem_tex = engine.load_texture(std::path::Path::new("content/gem.png"))?;
+    let gem_mesh = engine.load_textured(std::path::Path::new("content/gem.obj"))?;
+    let gem_model = engine.create_textured_model(gem_mesh, vec![gem_tex]);
+
+    let world = World {
+        camera,
+        camera_control: OrbitCamera::new(),
+        player: Player {
+            settings,
+            trf: Similarity3::new(start, Rotor3::identity(), 1.),
+            model: player_model,
+            vy: 0.,
+            jump_count: 0,
+        },
+        level: Level {
+            trf: Similarity3::new(Vec3::zero(), Rotor3::identity(), 3.),
+            model: level_model,
+            bounding_boxes,
+        },
+        start,
+        goal: Goal {
+            trf: Similarity3::new(end, Rotor3::identity(), 1.),
+            model: gem_model,
+        },
+    };
+
+    Ok(world)
+}
+
 struct PlayerSettings {
     radius: f32,
     velocity: f32,
@@ -156,13 +209,18 @@ struct Level {
     model: Rc<frenderer::renderer::textured::Model>,
     bounding_boxes: Vec<BoundingBox>,
 }
+
+struct Goal {
+    trf: Similarity3,
+    model: Rc<frenderer::renderer::textured::Model>,
+}
 struct World {
     camera: Camera,
     camera_control: OrbitCamera,
     player: Player,
     level: Level,
     start: Vec3,
-    end: Vec3,
+    goal: Goal,
 }
 struct Flat {
     trf: Similarity3,
@@ -223,6 +281,8 @@ impl frenderer::World for World {
             },
         });
 
+        dbg!(self.player.trf.translation);
+
         // ADJUST CAMERA
         self.camera_control.update(input, &self.player);
         self.camera_control.update_camera(&mut self.camera);
@@ -236,8 +296,8 @@ impl frenderer::World for World {
         rs.set_camera(self.camera);
 
         rs.render_textured(self.player.model.clone(), self.player.trf, 0);
-
         rs.render_textured(self.level.model.clone(), self.level.trf, 1);
+        rs.render_textured(self.goal.model.clone(), self.goal.trf, 2);
     }
 } 
 fn main() -> Result<()> {
@@ -245,48 +305,19 @@ fn main() -> Result<()> {
 
     let mut engine: Engine = Engine::new(WindowSettings::default(), DT);
 
-    let camera = Camera::look_at(
-        Vec3::new(0., 4., 0.),
-        Vec3::new(0., 0., 0.),
-        Vec3::new(0., 1., 0.),
-    );
-
     let settings = PlayerSettings {
         radius: 1.,
         velocity: 0.2,
         gravity: -0.03
     };
 
-    let player_tex = engine.load_texture(std::path::Path::new("content/sphere.png"))?;
-    let player_mesh = engine.load_textured(std::path::Path::new("content/sphere.obj"))?;
-    let player_model = engine.create_textured_model(player_mesh, vec![player_tex]);
+    let world = new_world(
+        &mut engine,
+        settings,
+        "level_1",
+        Vec3::new(-12.75, 10., 11.25),
+        Vec3::new(-15.0, 10.0, -15.0)
+    ).unwrap();
 
-    let level_tex = engine.load_texture(std::path::Path::new("content/level_1.png"))?;
-    let level_mesh = engine.load_textured(std::path::Path::new("content/level_1.obj"))?;
-    let level_model = engine.create_textured_model(level_mesh, vec![level_tex, level_tex]);
-
-    let bounding_boxes = BoundingBox::from_file("./content/level_1_bb.txt").unwrap();
-
-    let world = World {
-        camera,
-        camera_control: OrbitCamera::new(),
-        player: Player {
-            settings,
-            trf: Similarity3::new(Vec3::new(-12., 10., 11.5), Rotor3::identity(), 1.),
-            model: player_model,
-            vy: 0.,
-            jump_count: 0,
-        },
-        level: Level {
-            trf: Similarity3::new(Vec3::new(0.0, 0.0, 0.0), Rotor3::identity(), 3.),
-            model: level_model,
-            bounding_boxes,
-        },
-        start: Vec3::new(-12., 10., 11.5),
-        end: Vec3::new(0., 0., 0.)
-    };
     engine.play(world)
 }
-// START + END
-// NEW MODEL
-// LOAD BOXES FROM FILE
