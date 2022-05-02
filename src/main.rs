@@ -6,8 +6,12 @@ use std::rc::Rc;
 
 // GAME SETTINGS
 const DT: f64 = 1.0 / 60.0; // time step
-const PR: f32 = 1.0; // sphere radius
-const PV: f32 = 0.2; // player movement velocity
+
+struct PlayerSettings {
+    radius: f32,
+    velocity: f32,
+    gravity: f32
+}
 
 struct BoundingBox {
     min_x: f32,
@@ -39,7 +43,7 @@ struct Sphere {
 fn handle_collision(p: &mut Player, b: &BoundingBox) {
     let s: Sphere = Sphere { 
         pos: p.trf.translation,
-        r: PR,
+        r: p.settings.radius,
     };
 
     let closest = Vec3::new(
@@ -67,9 +71,9 @@ fn handle_collision(p: &mut Player, b: &BoundingBox) {
 }
 
 struct Player {
+    settings: PlayerSettings,
     trf: Similarity3,
     model: Rc<frenderer::renderer::textured::Model>,
-    a: Vec3,
     v: Vec3,
     jump_count: u8,
 }
@@ -96,35 +100,35 @@ impl frenderer::World for World {
 
         // X MOVEMENT
         if input.is_key_down(Key::Right) {
-            self.player.v.x = PV
+            self.player.v.x = self.player.settings.velocity
         } else if input.is_key_down(Key::Left) {
-            self.player.v.x = -PV
+            self.player.v.x = -self.player.settings.velocity
         } else {
             self.player.v.x = 0.
         };
 
         // Z MOVEMENT
         if input.is_key_down(Key::Down) {
-            self.player.v.z = PV
+            self.player.v.z = self.player.settings.velocity
         } else if input.is_key_down(Key::Up) {
-            self.player.v.z = -PV
+            self.player.v.z = -self.player.settings.velocity
         } else {
             self.player.v.z = 0.
         };
 
         // JUMP MECHANICS
         if input.is_key_pressed(Key::Space) && self.player.jump_count < 2 {
-            self.player.v.y = 3. * PV;
+            self.player.v.y = 3. * self.player.settings.velocity;
             self.player.jump_count += 1;
         }
 
         // MAKE MOVEMENTS
-        self.player.v += self.player.a;
+        self.player.v.y += self.player.settings.gravity;
         self.player.trf.append_translation(self.player.v);
 
         // GROUND CHECK
-        if self.player.trf.translation.y < PR {
-            self.player.trf.translation.y = PR;
+        if self.player.trf.translation.y < self.player.settings.radius {
+            self.player.trf.translation.y = self.player.settings.radius;
             self.player.jump_count = 0;
         }
 
@@ -141,9 +145,9 @@ impl frenderer::World for World {
         self.player.trf.prepend_rotation(Rotor3 {
             s: 1.,
             bv: Bivec3 {
-                xy: ((self.player.v.x / (2. * PR)) / 2. * PI) * rot_mult,
+                xy: (self.player.v.x / self.player.settings.radius) * rot_mult,
                 xz: 0.,
-                yz: -((self.player.v.z / (2. * PR)) / 2. * PI) * rot_mult,
+                yz: -(self.player.v.z / self.player.settings.radius) * rot_mult,
             },
         });
 
@@ -181,6 +185,12 @@ fn main() -> Result<()> {
         Vec3::new(0., 1., 0.),
     );
 
+    let settings = PlayerSettings {
+        radius: 1.,
+        velocity: 0.2,
+        gravity: -0.03
+    };
+
     let player_tex = engine.load_texture(std::path::Path::new("content/sphere_test_spiral.png"))?;
     let player_mesh = engine.load_textured(std::path::Path::new("content/test.obj"))?;
     let player_model = engine.create_textured_model(player_mesh, vec![player_tex]);
@@ -217,9 +227,9 @@ fn main() -> Result<()> {
     let world = World {
         camera,
         player: Player {
+            settings,
             trf: Similarity3::new(Vec3::new(0.0, 3.0, 0.0), Rotor3::identity(), 1.),
             model: player_model,
-            a: Vec3::new(0., -0.03, 0.),
             v: Vec3::new(0., 0., 0.),
             jump_count: 0,
         },
