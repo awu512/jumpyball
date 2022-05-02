@@ -63,6 +63,7 @@ fn handle_collision(p: &mut Player, b: &BoundingBox) {
         } else if rest.y.abs() > rest.z.abs() {
             p.trf.translation.y += rest.y;
             p.v.y = 0.;
+            p.jump_count = 0;
         } else {
             p.trf.translation.z += rest.z;
             p.v.z = 0.;
