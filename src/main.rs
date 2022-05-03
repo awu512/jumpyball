@@ -257,8 +257,8 @@ impl frenderer::World for World {
       
         // GROUND CHECK
         if self.player.trf.translation.y < PR {
-            self.player.trf.translation.y = 1.;
-            // self.player.trf.translation = self.level.start;
+            // self.player.trf.translation.y = 1.;
+            self.player.trf.translation = self.level.start;
             self.player.vy = 0.;
             self.player.jump_count = 0;
         }
@@ -301,8 +301,6 @@ impl frenderer::World for World {
         let dy: f32 = if self.level.goal.anim_counter < 100 { -0.005 } else { 0.005 };
         self.level.goal.anim_counter += 1;
         self.level.goal.trf.translation.y += dy;
-
-        dbg!(self.player.trf.translation);
     }
 
     fn render(
@@ -354,8 +352,8 @@ fn main() -> Result<()> {
         &mut engine,
         "level_2",
         goal_model,
-        Vec3::new(32., 22., -24.),
-        Vec3::new(15.0, 10.0, 15.0)
+        Vec3::new(14., 4., -14.),
+        Vec3::new(40.0, 36.5, -47.0)
     ).unwrap();
 
     let levels = vec![level_2];
