@@ -353,7 +353,7 @@ fn main() -> Result<()> {
         "level_2",
         goal_model,
         Vec3::new(14., 4., -14.),
-        Vec3::new(40.0, 36.5, -47.0)
+        Vec3::new(62.0, 8.8, -47.0)
     ).unwrap();
 
     let levels = vec![level_2];
