@@ -22,12 +22,12 @@ fn new_level(
     end: Vec3
 ) -> Result<Level, Box<dyn std::error::Error>> {
 
-    let level_tex = engine.load_texture(std::path::Path::new(&format!("content/{level_name}.png")))?;
-    let level_mesh = engine.load_textured(std::path::Path::new(&format!("content/{level_name}.obj")))?;
+    let level_tex = engine.assets().load_texture(std::path::Path::new(&format!("content/{level_name}.png")))?;
+    let level_mesh = engine.assets().load_textured(std::path::Path::new(&format!("content/{level_name}.obj")))?;
 
     let l = level_mesh.len();
 
-    let level_model = engine.create_textured_model(level_mesh, vec![level_tex; l]);
+    let level_model = engine.assets().create_textured_model(level_mesh, vec![level_tex; l]);
 
     let bounding_boxes = BoundingBox::from_file(&format!("content/{level_name}_bb.txt")).unwrap();
 
@@ -170,9 +170,9 @@ impl OrbitCamera {
 
     fn update(&mut self, events: &frenderer::Input, player: &Player) {
         let (dx, dy) = events.get_delta();
-        self.pitch += (DT * dy  * player.settings.CS) as f32 / 10.0;
+        self.pitch += (DT * dy * CS) as f32 / 10.0;
         self.pitch = self.pitch.clamp(0.0, PI / 3.0);
-        self.yaw += (DT * dx * player.settings.CS) as f32 / 10.0;
+        self.yaw += (DT * dx * CS) as f32 / 10.0;
         self.player_pos = player.trf.translation;
     }
 
@@ -307,9 +307,9 @@ impl frenderer::World for World {
     ) {
         rs.set_camera(self.camera);
 
-        rs.render_textured(self.player.model.clone(), self.player.trf, 0);
-        rs.render_textured(self.level.model.clone(), self.level.trf, 1);
-        rs.render_textured(self.level.goal.model.clone(), self.level.goal.trf, 2);
+        rs.render_textured(0, self.player.model.clone(), FTextured::new(self.player.trf));
+        rs.render_textured(1, self.level.model.clone(), FTextured::new(self.level.trf));
+        rs.render_textured(2, self.level.goal.model.clone(), FTextured::new(self.level.goal.trf));
     }
 } 
 
@@ -339,13 +339,13 @@ fn main() -> Result<()> {
         Projection::Perspective { fov: PI / 2.0 },
     );
 
-    let player_tex = engine.load_texture(std::path::Path::new("content/sphere.png"))?;
-    let player_mesh = engine.load_textured(std::path::Path::new("content/sphere.obj"))?;
-    let player_model = engine.create_textured_model(player_mesh, vec![player_tex]);
+    let player_tex = engine.assets().load_texture(std::path::Path::new("content/sphere.png"))?;
+    let player_mesh = engine.assets().load_textured(std::path::Path::new("content/sphere.obj"))?;
+    let player_model = engine.assets().create_textured_model(player_mesh, vec![player_tex]);
 
-    let goal_tex = engine.load_texture(std::path::Path::new("content/gem.png"))?;
-    let goal_mesh = engine.load_textured(std::path::Path::new("content/gem.obj"))?;
-    let goal_model = engine.create_textured_model(goal_mesh, vec![goal_tex]);
+    let goal_tex = engine.assets().load_texture(std::path::Path::new("content/gem.png"))?;
+    let goal_mesh = engine.assets().load_textured(std::path::Path::new("content/gem.obj"))?;
+    let goal_model = engine.assets().create_textured_model(goal_mesh, vec![goal_tex]);
 
     let level_1 = new_level(
         &mut engine,
