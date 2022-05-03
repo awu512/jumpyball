@@ -7,66 +7,41 @@ use std::io::{BufRead, BufReader};
 use std::rc::Rc;
 
 // GAME SETTINGS
-const DT: f64 = 1.0 / 60.0; // time step
+const DT: f64 = 1.0 / 60.0; // time steps
+const PR: f32 = 1.; // player radius
+const PV: f32 = 0.2; // player velocity
+const GR: f32 = -0.03; // acceleration from gravity
 
-fn new_world(
+fn new_level(
     engine: &mut Engine,
-    settings: PlayerSettings, 
     level_name: &str,
+    goal_model: Rc<frenderer::renderer::textured::Model>,
     start: Vec3, 
     end: Vec3
-) -> Result<World, Box<dyn std::error::Error>> {
-
-    let camera = Camera::look_at(
-        Vec3::zero(),
-        Vec3::zero(),
-        Vec3::new(0., 1., 0.),
-    );
-
-    let player_tex = engine.load_texture(std::path::Path::new("content/sphere.png"))?;
-    let player_mesh = engine.load_textured(std::path::Path::new("content/sphere.obj"))?;
-    let player_model = engine.create_textured_model(player_mesh, vec![player_tex]);
+) -> Result<Level, Box<dyn std::error::Error>> {
 
     let level_tex = engine.load_texture(std::path::Path::new(&format!("content/{level_name}.png")))?;
     let level_mesh = engine.load_textured(std::path::Path::new(&format!("content/{level_name}.obj")))?;
-    let level_model = engine.create_textured_model(level_mesh, vec![level_tex; 2]);
+
+    let l = level_mesh.len();
+
+    let level_model = engine.create_textured_model(level_mesh, vec![level_tex; l]);
 
     let bounding_boxes = BoundingBox::from_file(&format!("content/{level_name}_bb.txt")).unwrap();
 
-    let gem_tex = engine.load_texture(std::path::Path::new("content/gem.png"))?;
-    let gem_mesh = engine.load_textured(std::path::Path::new("content/gem.obj"))?;
-    let gem_model = engine.create_textured_model(gem_mesh, vec![gem_tex]);
-
-    let world = World {
-        camera,
-        camera_control: OrbitCamera::new(),
-        player: Player {
-            settings,
-            trf: Similarity3::new(start, Rotor3::identity(), 1.),
-            model: player_model,
-            vy: 0.,
-            jump_count: 0,
-        },
-        level: Level {
-            trf: Similarity3::new(Vec3::zero(), Rotor3::identity(), 3.),
-            model: level_model,
-            bounding_boxes,
-        },
+    let level: Level = Level {
+        trf: Similarity3::new(Vec3::zero(), Rotor3::identity(), 1.),
+        model: level_model,
+        bounding_boxes,
         start,
         goal: Goal {
             trf: Similarity3::new(end, Rotor3::identity(), 1.),
-            model: gem_model,
+            model: goal_model,
             anim_counter: 50
         },
     };
 
-    Ok(world)
-}
-
-struct PlayerSettings {
-    radius: f32,
-    velocity: f32,
-    gravity: f32
+    Ok(level)
 }
 
 struct BoundingBox {
@@ -122,7 +97,7 @@ struct Sphere {
 fn player_touching_end(p:&Player, g:&Goal) -> bool {
     let s: Sphere = Sphere { 
         pos: p.trf.translation,
-        r: p.settings.radius,
+        r: PR,
     };
 
     let b: BoundingBox = BoundingBox { 
@@ -148,7 +123,7 @@ fn player_touching_end(p:&Player, g:&Goal) -> bool {
 fn handle_collision(p: &mut Player, b: &BoundingBox) {
     let s: Sphere = Sphere { 
         pos: p.trf.translation,
-        r: p.settings.radius,
+        r: PR,
     };
 
     let closest = Vec3::new(
@@ -226,7 +201,6 @@ impl OrbitCamera {
 }
 
 struct Player {
-    settings: PlayerSettings,
     trf: Similarity3,
     model: Rc<frenderer::renderer::textured::Model>,
     vy: f32,
@@ -237,6 +211,8 @@ struct Level {
     trf: Similarity3,
     model: Rc<frenderer::renderer::textured::Model>,
     bounding_boxes: Vec<BoundingBox>,
+    start: Vec3,
+    goal: Goal,
 }
 
 struct Goal {
@@ -248,9 +224,9 @@ struct World {
     camera: Camera,
     camera_control: OrbitCamera,
     player: Player,
-    level: Level,
-    start: Vec3,
-    goal: Goal,
+    levels: Vec<Level>,
+    level_i: usize,
+    level: Level
 }
 struct Flat {
     trf: Similarity3,
@@ -259,16 +235,15 @@ struct Flat {
 
 impl frenderer::World for World {
     fn update(&mut self, input: &frenderer::Input, _assets: &mut frenderer::assets::Assets) {
-
         // JUMP MECHANICS
         if input.is_key_pressed(Key::Space) && self.player.jump_count < 2 {
-            self.player.vy = 3. * self.player.settings.velocity;
+            self.player.vy = 3. * PV;
             self.player.jump_count += 1;
         }
       
         // CALCULATE PLAYER MOVEMENT
         let rotation = Rotor3::from_euler_angles(0.0, 0.0, self.camera_control.yaw);
-        self.player.vy += self.player.settings.gravity;
+        self.player.vy += GR;
         let move_vec = rotation * Vec3::new(
             input.key_axis(Key::D, Key::A),
             self.player.vy,
@@ -276,13 +251,14 @@ impl frenderer::World for World {
         );
 
         // EXECUTE PLAYER MOVEMENT
-        self.player.trf.translation.x += self.player.settings.velocity * move_vec.x;
+        self.player.trf.translation.x += PV * move_vec.x;
         self.player.trf.translation.y += move_vec.y;
-        self.player.trf.translation.z += self.player.settings.velocity * move_vec.z;
+        self.player.trf.translation.z += PV * move_vec.z;
       
         // GROUND CHECK
-        if self.player.trf.translation.y < self.player.settings.radius {
-            self.player.trf.translation = self.start;
+        if self.player.trf.translation.y < PR {
+            self.player.trf.translation.y = 1.;
+            // self.player.trf.translation = self.level.start;
             self.player.vy = 0.;
             self.player.jump_count = 0;
         }
@@ -302,17 +278,17 @@ impl frenderer::World for World {
         }
 
         // CHECK END OF LEVEL
-        if player_touching_end(&self.player, &self.goal) {
-            dbg!("You win!"); // move to next level
+        if player_touching_end(&self.player, &self.level.goal) {
+            next_level(self);
         }
 
         // ROTATE PLAYER
         self.player.trf.prepend_rotation(Rotor3 {
             s: 1.,
             bv: Bivec3 {
-                xy: (move_vec.x / (2.*PI*self.player.settings.radius)) * rot_mult,
+                xy: (move_vec.x / (2.*PI*PR)) * rot_mult,
                 xz: 0.,
-                yz: -(move_vec.z / (2.*PI*self.player.settings.radius)) * rot_mult,
+                yz: -(move_vec.z / (2.*PI*PR)) * rot_mult,
             },
         });
 
@@ -321,10 +297,12 @@ impl frenderer::World for World {
         self.camera_control.update_camera(&mut self.camera);
 
         // ANIMATE GOAL
-        if self.goal.anim_counter >= 200 { self.goal.anim_counter = 0 }
-        let dy: f32 = if self.goal.anim_counter < 100 { -0.005 } else { 0.005 };
-        self.goal.anim_counter += 1;
-        self.goal.trf.translation.y += dy;
+        if self.level.goal.anim_counter >= 200 { self.level.goal.anim_counter = 0 }
+        let dy: f32 = if self.level.goal.anim_counter < 100 { -0.005 } else { 0.005 };
+        self.level.goal.anim_counter += 1;
+        self.level.goal.trf.translation.y += dy;
+
+        dbg!(self.player.trf.translation);
     }
 
     fn render(
@@ -336,27 +314,65 @@ impl frenderer::World for World {
 
         rs.render_textured(self.player.model.clone(), self.player.trf, 0);
         rs.render_textured(self.level.model.clone(), self.level.trf, 1);
-        rs.render_textured(self.goal.model.clone(), self.goal.trf, 2);
+        rs.render_textured(self.level.goal.model.clone(), self.level.goal.trf, 2);
     }
 } 
+
+fn next_level(world: &mut World) {
+    world.level = world.levels.pop().unwrap();
+    world.player.trf.translation = world.level.start;
+}
+
 fn main() -> Result<()> {
     frenderer::color_eyre::install()?;
 
     let mut engine: Engine = Engine::new(WindowSettings::default(), DT);
 
-    let settings = PlayerSettings {
-        radius: 1.,
-        velocity: 0.2,
-        gravity: -0.03
-    };
+    let camera = Camera::look_at(
+        Vec3::zero(),
+        Vec3::zero(),
+        Vec3::new(0., 1., 0.),
+    );
 
-    let world = new_world(
+    let player_tex = engine.load_texture(std::path::Path::new("content/sphere.png"))?;
+    let player_mesh = engine.load_textured(std::path::Path::new("content/sphere.obj"))?;
+    let player_model = engine.create_textured_model(player_mesh, vec![player_tex]);
+
+    let goal_tex = engine.load_texture(std::path::Path::new("content/gem.png"))?;
+    let goal_mesh = engine.load_textured(std::path::Path::new("content/gem.obj"))?;
+    let goal_model = engine.create_textured_model(goal_mesh, vec![goal_tex]);
+
+    let level_1 = new_level(
         &mut engine,
-        settings,
         "level_1",
+        goal_model.clone(),
         Vec3::new(-12.75, 10., 11.25),
         Vec3::new(-15.0, 10.0, -15.0)
     ).unwrap();
+
+    let level_2 = new_level(
+        &mut engine,
+        "level_2",
+        goal_model,
+        Vec3::new(32., 22., -24.),
+        Vec3::new(15.0, 10.0, 15.0)
+    ).unwrap();
+
+    let levels = vec![level_2];
+
+    let world: World = World {
+        camera,
+        camera_control: OrbitCamera::new(),
+        player: Player {
+            trf: Similarity3::new(level_1.start, Rotor3::identity(), 1.),
+            model: player_model,
+            vy: 0.,
+            jump_count: 0,
+        },
+        levels,
+        level_i: 0,
+        level: level_1,
+    };
 
     engine.play(world)
 }
