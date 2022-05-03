@@ -237,7 +237,7 @@ fn main() -> Result<()> {
     let player_model = engine.create_textured_model(player_mesh, vec![player_tex]);
 
     let level_tex = engine.load_texture(std::path::Path::new("content/level_1.png"))?;
-    let level_mesh = engine.load_textured(std::path::Path::new("content/level_1.obj"))?;
+    let level_mesh = engine.load_textured(std::path::Path::new("content/level_1.2.obj"))?;
     let level_model = engine.create_textured_model(level_mesh, vec![level_tex, level_tex]);
 
     let bounding_boxes = vec![
@@ -265,7 +265,7 @@ fn main() -> Result<()> {
             jump_count: 0,
         },
         level: Level {
-            trf: Similarity3::new(Vec3::new(0.0, 0.0, 0.0), Rotor3::identity(), 3.),
+            trf: Similarity3::new(Vec3::new(0.0, 0.0, 0.0), Rotor3::identity(), 1.),
             model: level_model,
             bounding_boxes,
         },
