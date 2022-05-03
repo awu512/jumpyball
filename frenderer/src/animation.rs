@@ -254,13 +254,21 @@ pub struct AnimationState {
     pub t: f32,
 }
 impl AnimationState {
-    pub fn interpolate(&self, other: &Self, r: f32) -> Self {
-        Self {
-            t: self.t.lerp(other.t, r),
-        }
-    }
     pub fn tick(&mut self, dt: f64) {
         self.t += dt as f32;
+    }
+}
+impl Interpolate for AnimationState {
+    fn interpolate(&self, other: Self, r: f32) -> Self {
+        Self {
+            t: self.t.interpolate(other.t, r),
+        }
+    }
+
+    fn interpolate_limit(&self, other: Self, r: f32, lim: f32) -> Self {
+        Self {
+            t: self.t.interpolate_limit(other.t, r, lim),
+        }
     }
 }
 #[derive(Clone, Copy, Debug)]
@@ -273,8 +281,10 @@ pub struct Animation {
     duration: f32,
     settings: AnimationSettings,
 }
-impl Animation{
-    pub fn name(&self) -> &str { &self.name }
+impl Animation {
+    pub fn name(&self) -> &str {
+        &self.name
+    }
 }
 #[derive(Debug)]
 pub struct Channel {
@@ -285,7 +295,9 @@ pub struct Channel {
     scale_keys: Vec<(f32, Vec3)>,
 }
 impl Channel {
-    pub fn name(&self) -> &str { &self.name }
+    pub fn name(&self) -> &str {
+        &self.name
+    }
     pub fn sample(&self, t: f32, trf: Similarity3) -> Similarity3 {
         let (p1, p2, pr) = Self::sample_keys(&self.position_keys, trf.translation, t);
         //dbg!(p1,p2,pr);

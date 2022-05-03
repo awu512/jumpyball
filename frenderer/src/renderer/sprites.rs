@@ -22,32 +22,27 @@ use vulkano::pipeline::Pipeline;
 use vulkano::render_pass::Subpass;
 use vulkano::sampler::Sampler;
 
+#[derive(Clone)]
 pub struct SingleRenderState {
-    texture: assets::TextureRef,
     region: Rect,
     transform: Isometry3,
     size: Vec2,
 }
 impl SingleRenderState {
-    pub(crate) fn new(
-        texture: assets::TextureRef,
-        region: Rect,
-        transform: Isometry3,
-        size: Vec2,
-    ) -> Self {
+    pub fn new(region: Rect, transform: Isometry3, size: Vec2) -> Self {
         Self {
-            texture,
             region,
             transform,
             size,
         }
     }
-    pub fn interpolate(&self, other: &Self, r: f32) -> Self {
+}
+impl super::SingleRenderState for SingleRenderState {
+    fn interpolate(&self, other: &Self, r: f32) -> Self {
         Self {
-            texture: other.texture,
-            transform: self.transform.lerp(&other.transform, r),
-            size: self.size.lerp(other.size, r),
-            region: self.region.lerp(&other.region, r),
+            transform: self.transform.interpolate_limit(other.transform, r, 10.0),
+            size: self.size.interpolate_limit(other.size, r, 0.5),
+            region: other.region,
         }
     }
 }
@@ -79,9 +74,12 @@ pub struct Renderer {
     instance_pool: CpuBufferPool<InstanceData, Arc<vulkano::memory::pool::StdMemoryPool>>,
     batches: HashMap<assets::TextureRef, BatchData>,
 }
-
+impl super::Renderer for Renderer {
+    type BatchRenderKey = assets::TextureRef;
+    type SingleRenderState = SingleRenderState;
+}
 impl Renderer {
-    pub fn new(vulkan: &mut Vulkan) -> Self {
+    pub fn new(vulkan: &mut Vulkan, cull_back_faces: bool) -> Self {
         mod vs {
             vulkano_shaders::shader! {
                 ty: "vertex",
@@ -102,6 +100,7 @@ layout(set=0, binding=0) uniform BatchData { mat4 viewproj; };
 void main() {
   float w = size_uv.x;
   float h = size_uv.y;
+  vec2 uv = size_uv.zw;
   // 0: TL, 1: BL, 2: BR, 3: TR
   vec2 posns[] = {
     vec2(-0.5, 0.5),
@@ -111,7 +110,7 @@ void main() {
   };
   vec2 pos = posns[gl_VertexIndex].xy;
   gl_Position = viewproj * model * vec4(pos.xy, 0.0, 1.0);
-  out_uv = vec2(size_uv.z,1.0-size_uv.w) + vec2(size_uv.x*(pos.x+0.5),size_uv.y*(1.0-(pos.y+0.5)));
+  out_uv = vec2(uv.x+(pos.x+0.5)*w,1.0-(uv.y+(pos.y+0.5)*h));
 }
 "
             }
@@ -152,14 +151,18 @@ void main() {
             .fragment_shader(fs.entry_point("main").unwrap(), ())
             .rasterization_state(
                 RasterizationState::new()
-                    .cull_mode(vulkano::pipeline::graphics::rasterization::CullMode::Back)
+                    .cull_mode(if cull_back_faces {
+                        vulkano::pipeline::graphics::rasterization::CullMode::Back
+                    } else {
+                        vulkano::pipeline::graphics::rasterization::CullMode::None
+                    })
                     .front_face(
                         vulkano::pipeline::graphics::rasterization::FrontFace::CounterClockwise,
                     ),
             )
             .depth_stencil_state(DepthStencilState {
                 depth: Some(DepthState {
-                    compare_op: vulkano::pipeline::StateMode::Fixed(CompareOp::Less),
+                    compare_op: vulkano::pipeline::StateMode::Fixed(CompareOp::Greater),
                     enable_dynamic: false,
                     write_enable: vulkano::pipeline::StateMode::Fixed(true),
                 }),
@@ -194,21 +197,24 @@ void main() {
             uniform_binding: None,
         }
     }
-    pub fn push_model(
+    pub fn push_models<'a>(
         &mut self,
         tr: assets::TextureRef,
         texture: &Texture,
-        region: Rect,
-        trf: Isometry3,
-        size: Vec2,
+        dat: impl IntoIterator<Item = &'a SingleRenderState>,
     ) {
         use std::collections::hash_map::Entry;
-        let inst = InstanceData {
-            model: *(trf.into_homogeneous_matrix()
-                * Mat4::from_nonuniform_scale(Vec3::new(size.x, size.y, 1.0)))
+        let insts = dat.into_iter().map(|srs| InstanceData {
+            model: *(srs.transform.into_homogeneous_matrix()
+                * Mat4::from_nonuniform_scale(Vec3::new(srs.size.x, srs.size.y, 1.0)))
             .as_array(),
-            size_uv: [region.sz.x, region.sz.y, region.pos.x, region.pos.y],
-        };
+            size_uv: [
+                srs.region.sz.x,
+                srs.region.sz.y,
+                srs.region.pos.x,
+                srs.region.pos.y,
+            ],
+        });
         match self.batches.entry(tr) {
             Entry::Vacant(v) => {
                 let mut b = Self::create_batch(
@@ -217,10 +223,10 @@ void main() {
                     texture,
                     self.index_buf.clone(),
                 );
-                b.push_instance(inst);
+                b.push_instances(insts);
                 v.insert(b);
             }
-            Entry::Occupied(v) => v.into_mut().push_instance(inst),
+            Entry::Occupied(v) => v.into_mut().push_instances(insts),
         }
     }
     fn create_batch(
@@ -248,9 +254,13 @@ void main() {
         }
     }
     pub fn prepare(&mut self, rs: &RenderState, assets: &assets::Assets, camera: &Camera) {
-        for v in rs.sprites.values() {
-            let tex = assets.texture(v.texture);
-            self.push_model(v.texture, tex, v.region, v.transform, v.size);
+        for (tex_id, v) in rs.sprites.interpolated.values() {
+            let tex = assets.texture(*tex_id);
+            self.push_models(*tex_id, tex, std::iter::once(v));
+        }
+        for (tex_id, vs) in rs.sprites.raw.iter() {
+            let tex = assets.texture(*tex_id);
+            self.push_models(*tex_id, tex, vs);
         }
         self.prepare_draw(camera);
     }
@@ -327,7 +337,7 @@ impl BatchData {
     fn is_empty(&self) -> bool {
         self.instance_data.is_empty()
     }
-    fn push_instance(&mut self, inst: InstanceData) {
-        self.instance_data.push(inst);
+    fn push_instances(&mut self, insts: impl IntoIterator<Item = InstanceData>) {
+        self.instance_data.extend(insts);
     }
 }

@@ -1,28 +1,45 @@
-use std::rc::Rc;
-use crate::animation;
-use crate::assets::{self, Assets};
-use crate::camera::Camera;
+use crate::assets::Assets;
 use crate::input::Input;
-use crate::renderer;
-use crate::types::*;
 use crate::vulkan::Vulkan;
 use color_eyre::eyre::Result;
+use std::{cell::RefCell, rc::Rc};
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::WindowBuilder;
 
+#[derive(Default)]
+pub struct FrendererSettings {
+    pub window: WindowSettings,
+    pub sprite: SpriteRendererSettings,
+    pub _ne: NE,
+}
 pub struct WindowSettings {
     pub w: usize,
     pub h: usize,
     pub title: String,
+    pub _ne: NE,
 }
-
 impl Default for WindowSettings {
     fn default() -> Self {
         Self {
             w: 1024,
             h: 768,
             title: "Engine Window".to_string(),
+            _ne: NE(()),
+        }
+    }
+}
+pub struct SpriteRendererSettings {
+    pub cull_back_faces: bool,
+    pub _ne: NE,
+}
+#[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+pub struct NE(pub(crate) ());
+impl Default for SpriteRendererSettings {
+    fn default() -> Self {
+        Self {
+            cull_back_faces: true,
+            _ne: NE(()),
         }
     }
 }
@@ -30,51 +47,74 @@ impl Default for WindowSettings {
 pub struct Engine {
     assets: Assets,
     event_loop: Option<EventLoop<()>>,
-    camera: Camera,
-    vulkan: Vulkan,
+    vulkan: Rc<RefCell<Vulkan>>,
     input: Input,
     // 1 is new, 0 is old
     render_states: [crate::renderer::RenderState; 2],
     interpolated_state: crate::renderer::RenderState,
     skinned_renderer: crate::renderer::skinned::Renderer,
     sprites_renderer: crate::renderer::sprites::Renderer,
+    billboard_renderer: crate::renderer::billboard::Renderer,
     textured_renderer: crate::renderer::textured::Renderer,
     flat_renderer: crate::renderer::flat::Renderer,
     dt: f64,
     acc: f64,
     last_frame: std::time::Instant,
+    moved: bool,
 }
 
 impl Engine {
-    pub fn new(ws: WindowSettings, dt: f64) -> Self {
+    pub fn new(fs: FrendererSettings, dt: f64) -> Self {
+        use crate::camera::{Camera, Projection};
+        use crate::types::Vec3;
+        let ws = fs.window;
         let event_loop = EventLoop::new();
         let wb = WindowBuilder::new()
             .with_inner_size(winit::dpi::LogicalSize::new(ws.w as f32, ws.h as f32))
             .with_title(ws.title);
         let input = Input::new();
-        let mut vulkan = Vulkan::new(wb, &event_loop);
+        let default_cam = Camera::look_at(
+            Vec3::new(0., 0., 0.),
+            Vec3::new(0., 0., 1.),
+            Vec3::unit_y(),
+            Projection::Perspective {
+                fov: crate::types::PI / 2.0,
+            },
+        );
+        let vulkan = Rc::new(RefCell::new(Vulkan::new(wb, &event_loop)));
+        let assets = Assets::new(Rc::clone(&vulkan));
+        let mut vulk = vulkan.borrow_mut();
+        let sprites_renderer =
+            crate::renderer::sprites::Renderer::new(&mut vulk, fs.sprite.cull_back_faces);
+        let billboard_renderer = crate::renderer::billboard::Renderer::new(&mut vulk);
+        let skinned_renderer = crate::renderer::skinned::Renderer::new(&mut vulk);
+        let textured_renderer = crate::renderer::textured::Renderer::new(&mut vulk);
+        let flat_renderer = crate::renderer::flat::Renderer::new(&mut vulk);
+        let moved = false;
+        drop(vulk);
         Self {
-            assets: Assets::new(),
-            skinned_renderer: crate::renderer::skinned::Renderer::new(&mut vulkan),
-            sprites_renderer: crate::renderer::sprites::Renderer::new(&mut vulkan),
-            textured_renderer: crate::renderer::textured::Renderer::new(&mut vulkan),
-            flat_renderer: crate::renderer::flat::Renderer::new(&mut vulkan),
+            assets,
+            skinned_renderer,
+            sprites_renderer,
+            billboard_renderer,
+            textured_renderer,
+            flat_renderer,
             vulkan,
             render_states: [
-                crate::renderer::RenderState::new(),
-                crate::renderer::RenderState::new(),
+                crate::renderer::RenderState::new(default_cam),
+                crate::renderer::RenderState::new(default_cam),
             ],
-            interpolated_state: crate::renderer::RenderState::new(),
+            interpolated_state: crate::renderer::RenderState::new(default_cam),
             dt,
             event_loop: Some(event_loop),
-            camera: Camera::look_at(Vec3::new(0., 0., 0.), Vec3::new(0., 0., 1.), Vec3::unit_y()),
             input,
             acc: 0.0,
             last_frame: std::time::Instant::now(),
+            moved,
         }
     }
-    pub fn set_camera(&mut self, cam: Camera) {
-        self.camera = cam;
+    pub fn assets(&mut self) -> &mut Assets {
+        &mut self.assets
     }
     pub fn play(mut self, mut w: impl crate::World + 'static) -> Result<()> {
         let ev = self.event_loop.take().unwrap();
@@ -92,7 +132,7 @@ impl Engine {
                     event: WindowEvent::Resized(_),
                     ..
                 } => {
-                    self.vulkan.recreate_swapchain = true;
+                    self.vulkan.borrow_mut().recreate_swapchain = true;
                 }
                 // NewEvents: Let's start processing events.
                 Event::NewEvents(_) => {}
@@ -106,9 +146,34 @@ impl Engine {
                 } => {
                     self.input.handle_key_event(in_event);
                 }
+                Event::WindowEvent {
+                    event: WindowEvent::MouseInput { state, button, .. },
+                    ..
+                } => {
+                    self.input.handle_mouse_button(state, button);
+                }
+                Event::WindowEvent {
+                    event: WindowEvent::CursorMoved { position, .. },
+                    ..
+                } => {
+                    self.input.handle_mouse_move(position);
+                }
+                Event::DeviceEvent {
+                    event: winit::event::DeviceEvent::MouseMotion { delta },
+                    ..
+                } => {
+                    self.input.handle_cursor_motion(delta);
+                    self.moved = true;
+                },
+
+
                 Event::MainEventsCleared => {
                     // track DT, accumulator, ...
                     {
+                        if !self.moved {
+                            self.input.handle_cursor_motion((0.0,0.0));
+                        }
+                        self.moved = false;
                         self.acc += self.last_frame.elapsed().as_secs_f64();
                         self.last_frame = std::time::Instant::now();
                         while self.acc >= self.dt {
@@ -133,7 +198,7 @@ impl Engine {
             AutoCommandBufferBuilder, CommandBufferUsage, SubpassContents,
         };
 
-        let vulkan = &mut self.vulkan;
+        let mut vulkan = self.vulkan.borrow_mut();
         vulkan.recreate_swapchain_if_necessary();
         let image_num = vulkan.get_next_image();
         if image_num.is_none() {
@@ -148,23 +213,45 @@ impl Engine {
         .unwrap();
         let r = (self.acc / self.dt) as f32;
         // let r = 1.0;
-        self.camera.set_ratio(vulkan.viewport.dimensions[0]/vulkan.viewport.dimensions[1]);
+        let ar = vulkan.viewport.dimensions[0] / vulkan.viewport.dimensions[1];
+        self.interpolated_state.camera_mut().set_ratio(ar);
+        for rs in self.render_states.iter_mut() {
+            rs.camera_mut().set_ratio(ar);
+        }
         self.interpolated_state
             .interpolate_from(&self.render_states[0], &self.render_states[1], r);
-        self.skinned_renderer
-            .prepare(&self.interpolated_state, &self.assets, &self.camera);
-        self.sprites_renderer
-            .prepare(&self.interpolated_state, &self.assets, &self.camera);
-        self.flat_renderer
-            .prepare(&self.interpolated_state, &self.assets, &self.camera);
-        self.textured_renderer
-            .prepare(&self.interpolated_state, &self.assets, &self.camera);
+
+        self.skinned_renderer.prepare(
+            &self.interpolated_state,
+            &self.assets,
+            &self.interpolated_state.camera,
+        );
+        self.sprites_renderer.prepare(
+            &self.interpolated_state,
+            &self.assets,
+            &self.interpolated_state.camera,
+        );
+        self.flat_renderer.prepare(
+            &self.interpolated_state,
+            &self.assets,
+            &self.interpolated_state.camera,
+        );
+        self.textured_renderer.prepare(
+            &self.interpolated_state,
+            &self.assets,
+            &self.interpolated_state.camera,
+        );
+        self.billboard_renderer.prepare(
+            &self.interpolated_state,
+            &self.assets,
+            &self.interpolated_state.camera,
+        );
 
         builder
             .begin_render_pass(
                 vulkan.framebuffers[image_num].clone(),
                 SubpassContents::Inline,
-                vec![[0.0, 0.0, 0.0, 0.0].into(), (1.0).into()],
+                vec![[0.0, 0.0, 0.0, 0.0].into(), (0.0).into()],
             )
             .unwrap()
             .set_viewport(0, [vulkan.viewport.clone()]);
@@ -173,54 +260,11 @@ impl Engine {
         self.sprites_renderer.draw(&mut builder);
         self.flat_renderer.draw(&mut builder);
         self.textured_renderer.draw(&mut builder);
+        self.billboard_renderer.draw(&mut builder);
 
         builder.end_render_pass().unwrap();
 
         let command_buffer = builder.build().unwrap();
         vulkan.execute_commands(command_buffer, image_num);
-    }
-    pub fn load_texture(&mut self, path: &std::path::Path) -> Result<assets::TextureRef> {
-        self.assets.load_texture(path, &mut self.vulkan)
-    }
-    pub fn load_skinned(
-        &mut self,
-        path: &std::path::Path,
-        node_root: &[&str],
-    ) -> Result<Vec<assets::MeshRef<renderer::skinned::Mesh>>> {
-        self.assets.load_skinned(path, node_root, &mut self.vulkan)
-    }
-    pub fn load_textured(
-        &mut self,
-        path: &std::path::Path,
-    ) -> Result<Vec<assets::MeshRef<renderer::textured::Mesh>>> {
-        self.assets.load_textured(path, &mut self.vulkan)
-    }
-    pub fn load_anim(
-        &mut self,
-        path: &std::path::Path,
-        mesh: assets::MeshRef<renderer::skinned::Mesh>,
-        settings: animation::AnimationSettings,
-        which: &str,
-    ) -> Result<assets::AnimRef> {
-        self.assets.load_anim(path, mesh, settings, which)
-    }
-    pub fn create_skinned_model(
-        &self,
-        meshes: Vec<assets::MeshRef<renderer::skinned::Mesh>>,
-        textures: Vec<assets::TextureRef>,
-    ) -> Rc<renderer::skinned::Model> {
-        assert_eq!(meshes.len(), textures.len());
-        Rc::new(renderer::skinned::Model::new(meshes, textures))
-    }
-    pub fn create_textured_model(
-        &self,
-        meshes: Vec<assets::MeshRef<renderer::textured::Mesh>>,
-        textures: Vec<assets::TextureRef>,
-    ) -> Rc<renderer::textured::Model> {
-        assert_eq!(meshes.len(), textures.len());
-        Rc::new(renderer::textured::Model::new(meshes, textures))
-    }
-    pub fn load_flat(&mut self, path: &std::path::Path) -> Result<Rc<renderer::flat::Model>> {
-        self.assets.load_flat(path, &mut self.vulkan)
     }
 }

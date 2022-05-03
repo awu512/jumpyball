@@ -5,10 +5,10 @@ use crate::renderer::{flat, skinned, textured};
 use crate::types::*;
 use crate::vulkan::Vulkan;
 use crate::Result;
-use std::collections::HashMap;
 use std::marker::PhantomData;
-use std::sync::Arc;
 use std::rc::Rc;
+use std::sync::Arc;
+use std::{cell::RefCell, collections::HashMap};
 use thunderdome::{Arena, Index};
 use vulkano::image::immutable::ImmutableImage;
 use vulkano::sync::GpuFuture;
@@ -25,24 +25,24 @@ pub struct Assets {
     materials: Arena<flat::Material>,
     materials_by_name: HashMap<String, MaterialRef<flat::Material>>,
     flat_meshes: Arena<flat::Mesh>,
+    vulkan: Rc<RefCell<Vulkan>>,
 }
 impl Assets {
-    pub fn new() -> Self {
+    #[allow(clippy::new_without_default)]
+    pub fn new(vulkan: Rc<RefCell<Vulkan>>) -> Self {
         Self {
             skinned_meshes: Arena::new(),
-            textured_meshes:Arena::new(),
+            textured_meshes: Arena::new(),
             animations: Arena::new(),
             textures: Arena::new(),
             flat_meshes: Arena::new(),
             materials: Arena::new(),
             materials_by_name: HashMap::new(),
+            vulkan,
         }
     }
-    pub fn load_texture(
-        &mut self,
-        path: &std::path::Path,
-        vulkan: &mut Vulkan,
-    ) -> Result<TextureRef> {
+    pub fn load_texture(&mut self, path: &std::path::Path) -> Result<TextureRef> {
+        let mut vulkan = self.vulkan.borrow_mut();
         let img = Image::from_file(path)?;
         let (vulk_img, fut) = ImmutableImage::from_iter(
             img.as_slice().iter().copied(),
@@ -66,8 +66,8 @@ impl Assets {
         &mut self,
         path: &std::path::Path,
         node_root: &[&str],
-        vulkan: &mut Vulkan,
     ) -> Result<Vec<MeshRef<skinned::Mesh>>> {
+        let mut vulkan = self.vulkan.borrow_mut();
         use russimp::scene::{PostProcess, Scene};
         let scene = Scene::from_file(
             path.to_str()
@@ -175,13 +175,13 @@ impl Assets {
                 Ok(MeshRef(mid, PhantomData))
             })
             .collect();
-        Ok(meshes?)
+        meshes
     }
     pub fn load_textured(
         &mut self,
         path: &std::path::Path,
-        vulkan: &mut Vulkan,
     ) -> Result<Vec<MeshRef<textured::Mesh>>> {
+        let mut vulkan = self.vulkan.borrow_mut();
         use russimp::scene::{PostProcess, Scene};
         let scene = Scene::from_file(
             path.to_str()
@@ -225,13 +225,12 @@ impl Assets {
                     .flat_map(|v| v.0.iter().copied())
                     .collect();
                 let (vb, vb_fut) = vulkano::buffer::ImmutableBuffer::from_iter(
-                    verts
-                        .iter()
-                        .zip(uvs.into_iter())
-                        .map(|(pos, uv)| crate::renderer::textured::Vertex {
+                    verts.iter().zip(uvs.into_iter()).map(|(pos, uv)| {
+                        crate::renderer::textured::Vertex {
                             position: [pos.x, pos.y, pos.z],
                             uv: [uv.x, uv.y],
-                        }),
+                        }
+                    }),
                     vulkano::buffer::BufferUsage::vertex_buffer(),
                     vulkan.queue.clone(),
                 )?;
@@ -244,15 +243,17 @@ impl Assets {
                 let load_fut = vb_fut.join(ib_fut);
                 vulkan.wait_for(Box::new(load_fut));
 
-                let mid = self.textured_meshes.insert(crate::renderer::textured::Mesh {
-                    mesh,
-                    verts: vb,
-                    idx: ib,
-                });
+                let mid = self
+                    .textured_meshes
+                    .insert(crate::renderer::textured::Mesh {
+                        mesh,
+                        verts: vb,
+                        idx: ib,
+                    });
                 Ok(MeshRef(mid, PhantomData))
             })
             .collect();
-        Ok(meshes?)
+        meshes
     }
     pub fn load_anim(
         &mut self,
@@ -281,11 +282,8 @@ impl Assets {
         let aid = self.animations.insert(anim);
         Ok(AnimRef(aid))
     }
-    pub fn load_flat(
-        &mut self,
-        path: &std::path::Path,
-        vulkan: &mut Vulkan,
-    ) -> Result<Rc<flat::Model>> {
+    pub fn load_flat(&mut self, path: &std::path::Path) -> Result<Rc<flat::Model>> {
+        let mut vulkan = self.vulkan.borrow_mut();
         use russimp::scene::{PostProcess, Scene};
         let scene = Scene::from_file(
             path.to_str()
@@ -303,7 +301,9 @@ impl Assets {
                 let color = mat
                     .properties
                     .iter()
-                    .find(|p| p.key == "$clr.base")
+                    .find(|p| {
+                        p.key == "$clr.base" || p.key == "$clr.diffuse" || p.key == "$raw.Diffuse"
+                    })
                     .and_then(|p| {
                         if let russimp::material::PropertyTypeInfo::FloatArray(fs) = &p.data {
                             Some(Vec4::new(fs[0], fs[1], fs[2], fs[3]))
@@ -323,7 +323,7 @@ impl Assets {
                             None
                         }
                     })
-                    .unwrap_or("BLANK".to_string());
+                    .unwrap_or_else(|| "BLANK".to_string());
                 match self.materials_by_name.entry(name.clone()) {
                     std::collections::hash_map::Entry::Occupied(e) => {
                         println!(
@@ -341,7 +341,9 @@ impl Assets {
                         )
                         .unwrap();
                         vulkan.wait_for(Box::new(fut));
-                        let mat_ref = self.materials.insert(flat::Material::new(color,name,buffer));
+                        let mat_ref = self
+                            .materials
+                            .insert(flat::Material::new(color, name, buffer));
                         let mat_ref = MaterialRef(mat_ref, PhantomData);
                         e.insert(mat_ref);
                         mat_ref
@@ -388,10 +390,7 @@ impl Assets {
                     verts: vb,
                     idx: ib,
                 });
-                Ok((
-                    MeshRef(mid, PhantomData),
-                    mat
-                ))
+                Ok((MeshRef(mid, PhantomData), mat))
             })
             .collect();
         let meshes = meshes?;
@@ -399,6 +398,22 @@ impl Assets {
             meshes.iter().map(|(m, _)| m).copied().collect(),
             meshes.iter().map(|(_, m)| m).copied().collect(),
         )))
+    }
+    pub fn create_skinned_model(
+        &self,
+        meshes: Vec<MeshRef<skinned::Mesh>>,
+        textures: Vec<TextureRef>,
+    ) -> Rc<skinned::Model> {
+        assert_eq!(meshes.len(), textures.len());
+        Rc::new(skinned::Model::new(meshes, textures))
+    }
+    pub fn create_textured_model(
+        &self,
+        meshes: Vec<MeshRef<textured::Mesh>>,
+        textures: Vec<TextureRef>,
+    ) -> Rc<textured::Model> {
+        assert_eq!(meshes.len(), textures.len());
+        Rc::new(textured::Model::new(meshes, textures))
     }
     pub fn skinned_mesh(&self, m: MeshRef<skinned::Mesh>) -> &skinned::Mesh {
         &self.skinned_meshes[m.0]
@@ -423,7 +438,7 @@ impl Assets {
 pub struct MeshRef<M>(Index, PhantomData<M>);
 impl<M> Clone for MeshRef<M> {
     fn clone(&self) -> Self {
-        Self(self.0.clone(), PhantomData)
+        Self(self.0, PhantomData)
     }
 }
 impl<M> Copy for MeshRef<M> {}
@@ -445,7 +460,7 @@ impl<M> std::hash::Hash for MeshRef<M> {
 pub struct MaterialRef<M>(Index, PhantomData<M>);
 impl<M> Clone for MaterialRef<M> {
     fn clone(&self) -> Self {
-        Self(self.0.clone(), PhantomData)
+        Self(self.0, PhantomData)
     }
 }
 impl<M> Copy for MaterialRef<M> {}
@@ -464,7 +479,7 @@ impl<M> std::hash::Hash for MaterialRef<M> {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct TextureRef(Index);
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct AnimRef(Index);
