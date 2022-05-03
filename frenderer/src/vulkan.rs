@@ -114,6 +114,7 @@ impl Vulkan {
             )
             .unwrap()
         };
+        surface.window().set_cursor_visible(false);
         let render_pass = vulkano::single_pass_renderpass!(
             device.clone(),
             attachments: {
