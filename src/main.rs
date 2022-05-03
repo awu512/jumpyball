@@ -1,7 +1,8 @@
 #![allow(dead_code)]
-use frenderer::camera::Camera;
+use frenderer::camera::{Camera, Projection};
+use frenderer::renderer::textured::SingleRenderState as FTextured;
 use frenderer::types::*;
-use frenderer::{Engine, MousePos, Key, Result, WindowSettings};
+use frenderer::{Engine, Key, Result, FrendererSettings, SpriteRendererSettings};
 use std::rc::Rc;
 
 // GAME SETTINGS
@@ -10,7 +11,8 @@ const DT: f64 = 1.0 / 60.0; // time step
 struct PlayerSettings {
     radius: f32,
     velocity: f32,
-    gravity: f32
+    gravity: f32,
+    cam_sense: f64,
 }
 
 struct BoundingBox {
@@ -88,16 +90,11 @@ impl OrbitCamera {
         }
     }
     fn update(&mut self, events: &frenderer::Input, player: &Player) {
-        let MousePos { x: dx, y: dy } = events.mouse_delta();
-        self.pitch += (DT * dy) as f32 / 10.0;
+        let (dx, dy) = events.get_delta();
+        self.pitch += (DT * dy  * player.settings.cam_sense) as f32 / 10.0;
         self.pitch = self.pitch.clamp(0.0, PI / 3.0);
-
-        self.yaw += (DT * dx) as f32 / 10.0;
-        // self.yaw = self.yaw.clamp(-PI / 4.0, PI / 4.0);
-        // self.distance += events.key_axis(Key::Up, Key::Down) * 5.0 * DT as f32;
+        self.yaw += (DT * dx * player.settings.cam_sense) as f32 / 10.0;
         self.player_pos = player.trf.translation;
-        // self.player_rot = player.trf.rotation;
-        // TODO: when player moves, slightly move yaw towards zero
     }
     fn update_camera(&self, c: &mut Camera) {
         // The camera should point at the player (you could transform
@@ -116,7 +113,7 @@ impl OrbitCamera {
         // so on---so we'd have player OR camera movements apply
         // accelerations to the camera which could be "beaten" by
         // collision.
-        *c = Camera::look_at(eye, at, Vec3::unit_y());
+        *c = Camera::look_at(eye, at, Vec3::unit_y(), Projection::Perspective { fov: PI / 2.0 });
     }
 }
 
@@ -210,35 +207,46 @@ impl frenderer::World for World {
     ) {
         rs.set_camera(self.camera);
 
-        rs.render_textured(self.player.model.clone(), self.player.trf, 0);
+        rs.render_textured(0, self.player.model.clone(), FTextured::new(self.player.trf));
 
-        rs.render_textured(self.level.model.clone(), self.level.trf, 1);
+        rs.render_textured(1, self.level.model.clone(), FTextured::new(self.level.trf));
     }
 } 
 fn main() -> Result<()> {
     frenderer::color_eyre::install()?;
 
-    let mut engine: Engine = Engine::new(WindowSettings::default(), DT);
+    let mut engine: Engine = Engine::new(
+        FrendererSettings {
+            sprite: SpriteRendererSettings {
+                cull_back_faces: false,
+                ..SpriteRendererSettings::default()
+            },
+            ..FrendererSettings::default()
+        },
+        DT,
+    );
 
     let camera = Camera::look_at(
         Vec3::new(0., 4., 7.),
         Vec3::new(0., 0., 0.),
         Vec3::new(0., 1., 0.),
+        Projection::Perspective { fov: PI / 2.0 },
     );
 
     let settings = PlayerSettings {
         radius: 1.,
         velocity: 0.2,
-        gravity: -0.03
+        gravity: -0.03,
+        cam_sense: 5.0,
     };
 
-    let player_tex = engine.load_texture(std::path::Path::new("content/sphere.png"))?;
-    let player_mesh = engine.load_textured(std::path::Path::new("content/sphere.obj"))?;
-    let player_model = engine.create_textured_model(player_mesh, vec![player_tex]);
+    let player_tex = engine.assets().load_texture(std::path::Path::new("content/sphere.png"))?;
+    let player_mesh = engine.assets().load_textured(std::path::Path::new("content/sphere.obj"))?;
+    let player_model = engine.assets().create_textured_model(player_mesh, vec![player_tex]);
 
-    let level_tex = engine.load_texture(std::path::Path::new("content/level_1.png"))?;
-    let level_mesh = engine.load_textured(std::path::Path::new("content/level_1.2.obj"))?;
-    let level_model = engine.create_textured_model(level_mesh, vec![level_tex, level_tex]);
+    let level_tex = engine.assets().load_texture(std::path::Path::new("content/level_1.png"))?;
+    let level_mesh = engine.assets().load_textured(std::path::Path::new("content/level_1.2.obj"))?;
+    let level_model = engine.assets().create_textured_model(level_mesh, vec![level_tex, level_tex]);
 
     let bounding_boxes = vec![
         BoundingBox::new(-18.0, 18.0, 0.0, 0.0, -18.0, 18.0), 
