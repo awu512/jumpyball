@@ -1,9 +1,10 @@
 #![allow(dead_code)]
-use frenderer::camera::Camera;
+use frenderer::camera::{Camera, Projection};
+use frenderer::renderer::textured::SingleRenderState as FTextured;
 use frenderer::types::*;
-use frenderer::{Engine, MousePos, Key, Result, WindowSettings};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
+use frenderer::{Engine, Key, Result, FrendererSettings, SpriteRendererSettings};
 use std::rc::Rc;
 
 // GAME SETTINGS
@@ -11,6 +12,7 @@ const DT: f64 = 1.0 / 60.0; // time steps
 const PR: f32 = 1.; // player radius
 const PV: f32 = 0.2; // player velocity
 const GR: f32 = -0.03; // acceleration from gravity
+const CS: f64 = 5.; // camera sense
 
 fn new_level(
     engine: &mut Engine,
@@ -167,16 +169,11 @@ impl OrbitCamera {
     }
 
     fn update(&mut self, events: &frenderer::Input, player: &Player) {
-        let MousePos { x: dx, y: dy } = events.mouse_delta();
-        self.pitch += (DT * dy) as f32 / 10.0;
-        self.pitch = self.pitch.clamp(-PI / 4.0, PI / 4.0);
-
-        self.yaw += (DT * dx) as f32 / 10.0;
-        // self.yaw = self.yaw.clamp(-PI / 4.0, PI / 4.0);
-        // self.distance += events.key_axis(Key::Up, Key::Down) * 5.0 * DT as f32;
+        let (dx, dy) = events.get_delta();
+        self.pitch += (DT * dy  * player.settings.CS) as f32 / 10.0;
+        self.pitch = self.pitch.clamp(0.0, PI / 3.0);
+        self.yaw += (DT * dx * player.settings.CS) as f32 / 10.0;
         self.player_pos = player.trf.translation;
-        // self.player_rot = player.trf.rotation;
-        // TODO: when player moves, slightly move yaw towards zero
     }
 
     fn update_camera(&self, c: &mut Camera) {
@@ -196,7 +193,7 @@ impl OrbitCamera {
         // so on---so we'd have player OR camera movements apply
         // accelerations to the camera which could be "beaten" by
         // collision.
-        *c = Camera::look_at(eye, at, Vec3::unit_y());
+        *c = Camera::look_at(eye, at, Vec3::unit_y(), Projection::Perspective { fov: PI / 2.0 });
     }
 }
 
@@ -249,7 +246,7 @@ impl frenderer::World for World {
             self.player.vy,
             input.key_axis(Key::S, Key::W)
         );
-
+        
         // EXECUTE PLAYER MOVEMENT
         self.player.trf.translation.x += PV * move_vec.x;
         self.player.trf.translation.y += move_vec.y;
@@ -324,12 +321,22 @@ fn next_level(world: &mut World) {
 fn main() -> Result<()> {
     frenderer::color_eyre::install()?;
 
-    let mut engine: Engine = Engine::new(WindowSettings::default(), DT);
+    let mut engine: Engine = Engine::new(
+        FrendererSettings {
+            sprite: SpriteRendererSettings {
+                cull_back_faces: false,
+                ..SpriteRendererSettings::default()
+            },
+            ..FrendererSettings::default()
+        },
+        DT,
+    );
 
     let camera = Camera::look_at(
         Vec3::zero(),
         Vec3::zero(),
         Vec3::new(0., 1., 0.),
+        Projection::Perspective { fov: PI / 2.0 },
     );
 
     let player_tex = engine.load_texture(std::path::Path::new("content/sphere.png"))?;
