@@ -6,6 +6,10 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use frenderer::{Engine, Key, Result, FrendererSettings, SpriteRendererSettings};
 use std::rc::Rc;
+use kira::arrangement::{Arrangement, LoopArrangementSettings};
+use kira::instance::InstanceSettings;
+use kira::manager::{AudioManager, AudioManagerSettings};
+use kira::sound::SoundSettings;
 
 // GAME SETTINGS
 const DT: f64 = 1.0 / 60.0; // time steps
@@ -237,7 +241,7 @@ impl frenderer::World for World {
             self.player.vy = 3. * PV;
             self.player.jump_count += 1;
         }
-      
+        
         // CALCULATE PLAYER MOVEMENT
         let rotation = Rotor3::from_euler_angles(0.0, 0.0, self.camera_control.yaw);
         self.player.vy += GR;
@@ -320,6 +324,19 @@ fn next_level(world: &mut World) {
 
 fn main() -> Result<()> {
     frenderer::color_eyre::install()?;
+    let mut audio_manager = AudioManager::new(AudioManagerSettings::default()).unwrap();
+
+    let mut sound_handle_music = audio_manager
+        .load_sound("content/level_1.ogg", SoundSettings::default())
+        .unwrap();
+
+    let mut arrangement_handle = audio_manager
+        .add_arrangement(Arrangement::new_loop(
+            &sound_handle_music,
+            LoopArrangementSettings::default(),
+        ))
+        .unwrap();
+    arrangement_handle.play(InstanceSettings::default());
 
     let mut engine: Engine = Engine::new(
         FrendererSettings {
