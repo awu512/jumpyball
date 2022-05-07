@@ -327,7 +327,7 @@ fn main() -> Result<()> {
     let mut audio_manager = AudioManager::new(AudioManagerSettings::default()).unwrap();
 
     let mut sound_handle_music = audio_manager
-        .load_sound("content/level_1.ogg", SoundSettings::default())
+        .load_sound("content/jumpyball.ogg", SoundSettings::default())
         .unwrap();
 
     let mut arrangement_handle = audio_manager

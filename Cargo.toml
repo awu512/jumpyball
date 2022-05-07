@@ -9,3 +9,4 @@ rand = "0.8.5"
 russimp={version="1.0.2", features=["prebuilt"], git="https://github.com/JoeOsborn/russimp.git", branch="master"}
 string-interner = "0.14.0"
 frenderer = { path = "../jumpyball/frenderer" }
+kira = "0.5.3"
